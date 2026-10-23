@@ -2,8 +2,8 @@
 
 | 項目 | 內容 |
 |---|---|
-| 目前版本 | v0.0.0（規劃中，尚無程式碼） |
-| 階段 | SOP 第 1、2 步完成；第 3 步選定 C 版面＋3 種配色，其餘畫面與 DESIGN.md 草案完成，待倬確認 |
+| 目前版本 | v0.1.0（骨架，尚未推到 GitHub） |
+| 階段 | SOP 第 1–3 步完成並經倬確認；第 4 步骨架本機完成，等建立 GitHub repo 與共用簽章 |
 | 最後更新 | 2026-10-23 |
 
 ## 任務
@@ -14,16 +14,41 @@
 - [x] 倬確認語音 API（2026-10-23 定案）
 - [x] 第 3 步之一：3 個方向（A 夜航、B 琥珀電台、C 訊號格）× 主畫面／全螢幕播放／桌面小工具，設計畫布 https://claude.ai/artifact/UTp8JU3oHebkETK5NfyYUi
 - [x] 第 3 步之二：倬選 C（2026-10-23）＋設定可切 3 種配色（F50）；補設定、單集動作／改名、清單、空狀態、健康檢查、配色對照；`docs/DESIGN.md` 草案
-- [ ] 倬確認其餘畫面與 DESIGN.md
-- [ ] 第 4 步：骨架（GitHub repo、共用簽章、CI、LAB 版）
+- [x] 倬確認其餘畫面與 DESIGN.md（2026-10-23 定案）
+- [x] 第 4 步之一：本機骨架 v0.1.0（Gradle、正式版＋LAB 版、版本號推導、簽章讀環境變數、3 種主題可切換、底部四分頁、Agent SDK＋Provider、CI 設定、7 個 JVM 測試通過）
+- [ ] 第 4 步之二：建立 GitHub repo `hoonsor/APK-SoundFlow`（倬同意後）＋push＋CI 通過
+- [ ] 第 4 步之三：倬把 APK-SoundFlow 加進 `setup-hoonsor-signing.ps1` 清單並執行（寫入簽章 Secrets）
+- [ ] 打包 IBM Plex Sans／Mono 字型（要下載 ttf，先問倬）
+- [ ] 更新 Claude Project 的 `APP-REGISTRY.md` 一列（本機沒有這份檔案，要在 claude.ai 的 Project 更新）
 - [ ] 後端：Supabase 資料表與觸發器、Edge Function、Google Cloud OAuth
 - [ ] N100 轉檔服務與封存工作
 
+## 版本歷程
+
+| 版本 | 日期 | commit | 變更 | 為什麼 |
+|---|---|---|---|---|
+| v0.1.0 | 2026/10/23 | 7cdaf63 | 骨架：正式版＋LAB 版、3 種佈景主題可切換、底部四分頁、Agent API describe、CI | SOP 第 4 步；先把編譯、簽章、發布管線跑通再做功能 |
+
+## 待實機驗證
+
+- [ ] 正式版與 LAB 版可同時安裝，名稱分別為 SoundFlow／SoundFlow LAB
+- [ ] 設定 → 佈景主題三選一，點了立即換色，重開 App 後仍記得
+- [ ] 語音總控「動作」頁掃描得到 SoundFlow（21 個動作顯示為規劃中）：需要共用簽章版
+
 ## 下一步
 
-等倬確認畫布第 4、5 列的畫面與 `docs/DESIGN.md`，即可進入第 4 步骨架（建立 GitHub repo `hoonsor/APK-SoundFlow` 要先問倬；共用簽章要請倬把新 repo 加進 `setup-hoonsor-signing.ps1` 清單再執行）。
+1. 倬同意後建立 GitHub repo（建議 public，與 APK-Translate 一致、Actions 免費）並 push，確認 CI 綠燈
+2. 倬把 APK-SoundFlow 加進 `setup-hoonsor-signing.ps1` 再執行，之後 CI 產出才是共用簽章
+3. SOP 第 5 步分版實作，建議順序：v0.2.0 Supabase 登入＋Podcast 列表（讀 `nlm_job`／`sf_track`）→ v0.3.0 Media3 背景播放＋迷你播放列＋全螢幕播放 → v0.4.0 桌面小工具 → v0.5.0 YouTube 分享＋N100 轉檔服務 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-10-23（第 5 段）／電腦 A
+- 完成：倬確認設計；本機骨架 v0.1.0。`gradlew testProdDebugUnitTest assembleRelease` 通過（ThemeTest 4 項含 3 主題 WCAG 對比度、AgentManifestTest 3 項），產出 prod／lab 兩個 release APK（debug 簽章）
+- 決定＋原因：沿用語音總控的 Gradle 設定（libs.versions.toml、prod／lab flavor、appVersion 推導 versionCode），各 APP 一致好維護；describe 讀 assets 裡的 manifest，不在 Kotlin 重寫 21 個動作（唯一來源、不會不一致）；字型先用系統字型（打包 IBM Plex 要下載檔案，先問倬）；hoonsor-kit 沒有適用 Android 的模組，未使用
+- 放棄＋原因：Google 可下載字型（需要 GMS 憑證陣列資源，憑證內容不能自己編）；複製語音總控的 test_agent_compat_check.py（那是語音總控專用的測試，已移到 `_trash/`）
+- 未完成：GitHub repo、共用簽章、APP-REGISTRY、字型
+- 環境注意：本機要用 JDK 21（`C:/Users/hoonsor/.jdks/jbr-21.0.11`）；`local.properties` 是本機檔（不進 Git），B 電腦要自己建（`sdk.dir=C:/Users/<使用者>/AppData/Local/Android/Sdk`）
 
 ### 2026-10-23（第 4 段）／電腦 A
 - 完成：倬選 C 訊號格；新增 F50 佈景主題（3 種配色只換色票）；畫布 C 主畫面改成可切換配色（theme 參數），新增設定（佈景主題可點即時切換）、單集動作與重新命名、播放清單、空狀態與離線、健康檢查、夜航／琥珀配色對照共 7 張；寫 DESIGN.md 草案（色票 12 個代號 × 3 主題＋共用語意色）
