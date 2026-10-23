@@ -1,0 +1,612 @@
+{
+  "api": 1,
+  "status": "planned",
+  "app": "SoundFlow",
+  "package": "tw.hoonsor.soundflow",
+  "version": "0.0.0",
+  "description": "倬的音訊播放器：播放新知雷達的 NotebookLM Podcast 與從 YouTube 分享進來的音檔，有桌面小工具、播放清單、倍速與睡眠計時。",
+  "notes": "Agent API 尚未實作；所有動作皆為規劃中。",
+  "actions": [
+    {
+      "name": "track_list",
+      "title": "查詢音檔",
+      "description": "依分頁、收聽狀態、關鍵字列出音檔（id、標題、頻道、長度、進度、加入時間）。只查詢不播放；要播放用 track_play",
+      "risk": "read",
+      "params": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "any",
+              "podcast",
+              "youtube"
+            ],
+            "default": "any",
+            "description": "分頁：podcast＝新知雷達 Podcast、youtube＝YouTube 音檔"
+          },
+          "query": {
+            "type": "string",
+            "description": "標題或頻道的關鍵字，模糊比對；多筆符合時回 AMBIGUOUS"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "any",
+              "unplayed",
+              "in_progress",
+              "played"
+            ],
+            "default": "any",
+            "description": "收聽狀態：unplayed＝沒聽過、in_progress＝聽到一半、played＝已聽完"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "newest",
+              "oldest",
+              "longest",
+              "shortest"
+            ],
+            "default": "newest"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 10
+          }
+        }
+      },
+      "examples": [
+        "最近有哪些新的 Podcast",
+        "YouTube 分頁有幾集沒聽",
+        "找一下講 Claude 的那集",
+        "我聽到一半的有哪些"
+      ]
+    },
+    {
+      "name": "track_play",
+      "title": "播放音檔",
+      "description": "播放指定的一集；沒指定時依 pick 選。會從上次中斷的地方繼續。播放清單用 playlist_play",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "string",
+            "description": "音軌 id（由 track_list 取得），與 query 二擇一"
+          },
+          "query": {
+            "type": "string",
+            "description": "標題或頻道的關鍵字，模糊比對；多筆符合時回 AMBIGUOUS"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "any",
+              "podcast",
+              "youtube"
+            ],
+            "default": "any",
+            "description": "分頁：podcast＝新知雷達 Podcast、youtube＝YouTube 音檔"
+          },
+          "pick": {
+            "type": "string",
+            "enum": [
+              "latest",
+              "latest_unplayed",
+              "resume"
+            ],
+            "default": "resume",
+            "description": "沒指定 track_id 或 query 時：latest＝最新一集、latest_unplayed＝最新沒聽過的、resume＝接續上次播放"
+          },
+          "from_start": {
+            "type": "boolean",
+            "default": false,
+            "description": "true＝從頭播，不接續進度"
+          }
+        }
+      },
+      "examples": [
+        "播最新的 Podcast",
+        "繼續聽剛剛那集",
+        "播 YouTube 最新一支沒聽過的",
+        "從頭播講 NotebookLM 的那集"
+      ]
+    },
+    {
+      "name": "now_playing_get",
+      "title": "目前播放",
+      "description": "回報正在播放（或暫停中）的音檔、位置、倍速、循環模式與睡眠計時剩餘時間",
+      "risk": "read",
+      "params": {
+        "type": "object",
+        "properties": {}
+      },
+      "examples": [
+        "現在在播什麼",
+        "這集還剩多久",
+        "現在是幾倍速"
+      ]
+    },
+    {
+      "name": "playback_control",
+      "title": "播放控制",
+      "description": "播放、暫停、上一首、下一首、停止。只控制 SoundFlow；控制其他 APP 的媒體用語音總控內建的 media_control",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "play",
+              "pause",
+              "toggle",
+              "next",
+              "previous",
+              "stop"
+            ]
+          }
+        },
+        "required": [
+          "command"
+        ]
+      },
+      "examples": [
+        "SoundFlow 暫停",
+        "下一集",
+        "繼續播",
+        "上一首"
+      ]
+    },
+    {
+      "name": "playback_seek",
+      "title": "快轉倒轉",
+      "description": "相對快轉倒轉（seconds，負數＝倒轉），或跳到指定位置（position_seconds），二擇一",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "seconds": {
+            "type": "integer",
+            "minimum": -3600,
+            "maximum": 3600,
+            "description": "相對秒數，正數快轉、負數倒轉"
+          },
+          "position_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "跳到從頭算起第幾秒"
+          }
+        }
+      },
+      "examples": [
+        "倒轉三十秒",
+        "快轉兩分鐘",
+        "跳到第十分鐘",
+        "剛剛沒聽清楚，倒回去一點"
+      ]
+    },
+    {
+      "name": "playback_speed_set",
+      "title": "調整倍速",
+      "description": "設定播放倍速 0.5～3.0；可指定絕對值 speed 或相對調整 delta（二擇一）",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 3.0,
+            "description": "倍速，例如 1.5"
+          },
+          "delta": {
+            "type": "number",
+            "minimum": -2.5,
+            "maximum": 2.5,
+            "description": "相對調整，例如 0.25＝快一點"
+          }
+        }
+      },
+      "examples": [
+        "調成一點五倍速",
+        "快一點",
+        "恢復正常速度",
+        "兩倍速播放"
+      ]
+    },
+    {
+      "name": "playback_mode_set",
+      "title": "循環與隨機",
+      "description": "設定循環模式（off＝不循環、all＝清單循環、one＝單曲循環）與隨機播放；只給要改的那一項",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "repeat": {
+            "type": "string",
+            "enum": [
+              "off",
+              "all",
+              "one"
+            ]
+          },
+          "shuffle": {
+            "type": "boolean"
+          }
+        }
+      },
+      "examples": [
+        "單曲循環",
+        "關掉循環",
+        "隨機播放",
+        "整個清單重複播"
+      ]
+    },
+    {
+      "name": "sleep_timer_set",
+      "title": "睡眠計時",
+      "description": "N 分鐘後停止播放，或本集播完停止；minutes＝0 取消計時",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 480,
+            "description": "幾分鐘後停止；0＝取消"
+          },
+          "end_of_track": {
+            "type": "boolean",
+            "default": false,
+            "description": "true＝這集播完就停"
+          }
+        }
+      },
+      "examples": [
+        "三十分鐘後停止播放",
+        "這集播完就停",
+        "取消睡眠計時",
+        "一個小時後關掉"
+      ]
+    },
+    {
+      "name": "queue_add",
+      "title": "加入待播",
+      "description": "把一集加進待播清單：下一首播放或排到最後",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "string",
+            "description": "音軌 id（由 track_list 取得），與 query 二擇一"
+          },
+          "query": {
+            "type": "string",
+            "description": "標題或頻道的關鍵字，模糊比對；多筆符合時回 AMBIGUOUS"
+          },
+          "position": {
+            "type": "string",
+            "enum": [
+              "next",
+              "end"
+            ],
+            "default": "end"
+          }
+        }
+      },
+      "examples": [
+        "下一首播講 Gemini 的那集",
+        "把最新的 YouTube 加進待播",
+        "這集聽完接著播 Claude 那集"
+      ]
+    },
+    {
+      "name": "playlist_list",
+      "title": "查詢清單",
+      "description": "列出自訂播放清單與智慧清單（名稱、集數、總長度）",
+      "risk": "read",
+      "params": {
+        "type": "object",
+        "properties": {}
+      },
+      "examples": [
+        "我有哪些播放清單",
+        "通勤清單有幾集"
+      ]
+    },
+    {
+      "name": "playlist_play",
+      "title": "播放清單",
+      "description": "從頭（或接續）播放某個播放清單",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "播放清單名稱，模糊比對；智慧清單：最新加入、未聽完、聽到一半、最近播放"
+          },
+          "shuffle": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "examples": [
+        "播通勤清單",
+        "隨機播放未聽完的",
+        "播最新加入的清單"
+      ]
+    },
+    {
+      "name": "playlist_track_add",
+      "title": "加入清單",
+      "description": "把一集加進自訂播放清單；清單不存在且 create＝true 時自動建立",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "自訂播放清單名稱（智慧清單不能手動加入）"
+          },
+          "track_id": {
+            "type": "string",
+            "description": "音軌 id（由 track_list 取得），與 query 二擇一"
+          },
+          "query": {
+            "type": "string",
+            "description": "標題或頻道的關鍵字，模糊比對；多筆符合時回 AMBIGUOUS"
+          },
+          "now_playing": {
+            "type": "boolean",
+            "default": false,
+            "description": "true＝加入目前播放的這集"
+          },
+          "create": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "examples": [
+        "把這集加到通勤清單",
+        "把講 AI Agent 的那集加進學習清單",
+        "建一個睡前清單，把這集放進去"
+      ]
+    },
+    {
+      "name": "track_rename",
+      "title": "重新命名",
+      "description": "改音檔在 SoundFlow 顯示的名稱（Podcast 改名不影響新知網站）；restore＝true 還原原標題",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "string",
+            "description": "音軌 id（由 track_list 取得），與 query 二擇一"
+          },
+          "query": {
+            "type": "string",
+            "description": "標題或頻道的關鍵字，模糊比對；多筆符合時回 AMBIGUOUS"
+          },
+          "now_playing": {
+            "type": "boolean",
+            "default": false,
+            "description": "true＝改目前播放的這集"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "restore": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "examples": [
+        "把這集改名叫 Claude 新功能整理",
+        "剛剛那支 YouTube 改名成健身課",
+        "這集還原原本的標題"
+      ]
+    },
+    {
+      "name": "track_mark_played",
+      "title": "標記已聽",
+      "description": "把一集標成已聽完或未聽（played＝false）",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "string",
+            "description": "音軌 id（由 track_list 取得），與 query 二擇一"
+          },
+          "query": {
+            "type": "string",
+            "description": "標題或頻道的關鍵字，模糊比對；多筆符合時回 AMBIGUOUS"
+          },
+          "now_playing": {
+            "type": "boolean",
+            "default": false
+          },
+          "played": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "examples": [
+        "這集標成聽完了",
+        "把 Gemini 那集標成沒聽過",
+        "這集我聽過了"
+      ]
+    },
+    {
+      "name": "track_delete",
+      "title": "刪除音檔",
+      "description": "把一集移到垃圾桶（30 天內可用 track_restore 還原）；Podcast 只從 SoundFlow 隱藏，新知網站照常可播",
+      "risk": "destructive",
+      "params": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "string",
+            "description": "音軌 id（由 track_list 取得），與 query 二擇一"
+          },
+          "query": {
+            "type": "string",
+            "description": "標題或頻道的關鍵字，模糊比對；多筆符合時回 AMBIGUOUS"
+          },
+          "now_playing": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "examples": [
+        "刪掉這集",
+        "把那支健身影片刪掉",
+        "這集不要了"
+      ]
+    },
+    {
+      "name": "track_restore",
+      "title": "還原音檔",
+      "description": "把垃圾桶裡的一集還原",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "string",
+            "description": "音軌 id（由 track_list 取得），與 query 二擇一"
+          },
+          "query": {
+            "type": "string",
+            "description": "垃圾桶中的標題關鍵字"
+          }
+        }
+      },
+      "examples": [
+        "把剛剛刪掉的那集救回來",
+        "還原健身影片"
+      ]
+    },
+    {
+      "name": "youtube_add",
+      "title": "加入 YouTube",
+      "description": "送出 YouTube 網址給 N100 抽音軌，完成後出現在 YouTube 分頁（通常幾分鐘）。需要明確的網址；用講的講不出網址時請在 YouTube 按分享",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "YouTube 影片網址"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "examples": [
+        "把這個 YouTube 網址加進 SoundFlow",
+        "這支影片轉成音檔"
+      ]
+    },
+    {
+      "name": "youtube_job_list",
+      "title": "轉檔進度",
+      "description": "列出排隊中、轉檔中與失敗的 YouTube 工作（含失敗原因）",
+      "risk": "read",
+      "params": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "failed",
+              "all"
+            ],
+            "default": "active"
+          }
+        }
+      },
+      "examples": [
+        "YouTube 轉好了沒",
+        "有沒有轉檔失敗的",
+        "還有幾支在排隊"
+      ]
+    },
+    {
+      "name": "status_get",
+      "title": "系統狀態",
+      "description": "回報 Supabase、Google Drive、手機快取的用量，以及 N100 轉檔主機最後上線時間",
+      "risk": "read",
+      "params": {
+        "type": "object",
+        "properties": {}
+      },
+      "examples": [
+        "SoundFlow 空間還夠嗎",
+        "轉檔主機有在線嗎",
+        "手機快取用了多少"
+      ]
+    },
+    {
+      "name": "backup_export",
+      "title": "匯出備份",
+      "description": "匯出播放清單、進度、改名與設定（不含音檔）成 zip，存到下載資料夾",
+      "risk": "reversible",
+      "params": {
+        "type": "object",
+        "properties": {}
+      },
+      "examples": [
+        "備份 SoundFlow",
+        "把播放清單匯出"
+      ]
+    },
+    {
+      "name": "backup_import",
+      "title": "匯入備份",
+      "description": "開啟檔案選擇畫面匯入備份（合併或取代）；匯入前會自動備份，可復原",
+      "risk": "destructive",
+      "params": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "merge",
+              "replace"
+            ],
+            "default": "merge"
+          }
+        }
+      },
+      "examples": [
+        "匯入 SoundFlow 備份",
+        "用備份檔還原播放清單"
+      ]
+    }
+  ]
+}
