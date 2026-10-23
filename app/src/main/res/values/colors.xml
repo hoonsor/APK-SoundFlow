@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 只給系統視窗（啟動畫面、狀態列）與圖示用；畫面上的顏色一律走 ui/theme/SfColors.kt -->
+<resources>
+    <color name="bg">#0E1116</color>
+    <color name="icon_bg">#0E1116</color>
+</resources>

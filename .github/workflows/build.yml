@@ -1,0 +1,109 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # 相容檢查要讀最近一個 v* tag
+
+      # Agent API 破壞性變更檢查：與最近一個正式版的 docs/agent-manifest.json 比對
+      - name: Agent API compatibility
+        run: python3 tools/agent_compat_check.py --git-baseline docs/agent-manifest.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # GitHub runner 已內建 Android SDK（ANDROID_HOME），不需要另外安裝
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(grep -oP 'val appVersion = "\K[^"]+' app/build.gradle.kts)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "appVersion = ${VERSION}"
+
+      # tag 與 appVersion 不一致時，App 內更新會一直以為有新版，所以直接擋下
+      - name: Check tag matches version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "v${{ steps.ver.outputs.version }}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} 與 appVersion ${{ steps.ver.outputs.version }} 不一致，請先改 app/build.gradle.kts"
+            exit 1
+          fi
+
+      # 共用簽章 hoonsor-release.jks：Secrets 由倬用 setup-hoonsor-signing.ps1 寫入；沒有時 Gradle 退回 debug 簽章
+      - name: Decode signing key
+        env:
+          SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$SIGNING_KEYSTORE_B64" ]; then
+            echo "$SIGNING_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/hoonsor-release.jks"
+            echo "SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/hoonsor-release.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::沒有 SIGNING_KEYSTORE_B64，這次用 debug 簽章（不能覆蓋安裝正式簽章版，語音總控也叫不動）"
+          fi
+
+      - name: Unit tests and release APKs
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew :app:testProdDebugUnitTest :app:assembleRelease --no-daemon 2>&1 | tee build.log
+
+      # 編譯失敗時把錯誤寫成 annotation，方便不下載 log 也能看到原因
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E "^e: |error:|What went wrong|Could not|FAILED|> " build.log | head -40 | while IFS= read -r line; do
+            echo "::error::${line//%/%25}"
+          done || true
+
+      - name: Rename APKs with version
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/prod/release/app-prod-release.apk "dist/SoundFlow-v${{ steps.ver.outputs.version }}.apk"
+          cp app/build/outputs/apk/lab/release/app-lab-release.apk "dist/SoundFlow-LAB-v${{ steps.ver.outputs.version }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SoundFlow-v${{ steps.ver.outputs.version }}
+          path: dist/*.apk
+
+      # main 每次推送都更新「latest」預先發行版，手機打開固定網址即可下載最新 APK
+      - name: Publish rolling latest
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cp dist/SoundFlow-v*.apk SoundFlow-latest.apk
+          cp dist/SoundFlow-LAB-v*.apk SoundFlow-LAB-latest.apk
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest SoundFlow-latest.apk SoundFlow-LAB-latest.apk \
+            --prerelease --title "最新版（自動編譯 v${{ steps.ver.outputs.version }}）" \
+            --notes "commit ${GITHUB_SHA::7} 自動編譯。手機直接點下方 APK 下載安裝；新功能先裝 LAB 版。" \
+            --target "${GITHUB_SHA}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # 推送 vX.Y.Z tag 時，自動建立 GitHub Release
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk

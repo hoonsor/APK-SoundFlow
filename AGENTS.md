@@ -1,11 +1,11 @@
 # AGENTS.md — SoundFlow
 
-> 給接手的 AI 讀。目前在**規劃階段**（功能清單待倬確認），尚無程式碼。先讀 `PROJECT_STATUS.md` 的「下一步」。
+> 給接手的 AI 讀。先讀 `PROJECT_STATUS.md` 的「下一步」與最新一筆交接紀錄，不要叫倬重講背景。
 
 ## 專案目的
 
 倬的手機音訊播放器（Android）。播放兩種來源：
-1. 27 號「新知雷達」送進 NotebookLM 產生的 Podcast（已存在 Supabase）
+1. 27 號「新知雷達」送進 NotebookLM 產生的 Podcast（已存在 Supabase 的 `nlm_job` 表與 `nlm` bucket）
 2. 從手機 YouTube App 分享進來、由 N100 抽成音檔的 YouTube 影片
 
 外觀與操作比照一般音樂播放器（參考 Spotify、YouTube Music），有桌面小工具，不用再開網頁或 YouTube。
@@ -14,19 +14,71 @@
 
 | 檔案 | 內容 |
 |---|---|
-| `docs/FEATURES.md` | 帶編號功能清單、優先、語音欄、倬確認日期、不做的項目 |
+| `docs/FEATURES.md` | 帶編號功能清單（F01–F50）、優先、語音欄、倬確認日期、不做的項目 |
 | `docs/ARCHITECTURE.md` | 架構圖、關鍵決定＋原因、資料表草案、已知風險 |
+| `docs/DESIGN.md` | 設計規範：C 訊號格版面、3 種佈景主題色票（唯一來源）、元件規則；畫布網址 |
+| `docs/AGENT_API.md` | 21 個語音動作的回傳與錯誤（規劃中） |
+| `docs/agent-manifest.json` | 語音動作的機器可讀清單；`describe` 直接回傳它 |
 | `PROJECT_STATUS.md` | 版本、任務勾選、交接紀錄、下一步 |
+| `README.md` | 給倬的使用說明 |
 
-## 技術棧（預定，依倬的 Android SOP）
+## 技術棧
 
-- Android：Kotlin、Compose＋M3、Media3（ExoPlayer＋MediaSessionService）、Glance 小工具、minSdk 30／targetSdk 35、套件名 `tw.hoonsor.soundflow`
-- 後端：Supabase（沿用 27 號的 AI_News 專案）、Edge Function `drive-token`
-- 轉檔與封存：N100 拉斐爾主機上的服務（yt-dlp、ffmpeg、Google Drive API）
-- 編譯：GitHub Actions（repo `hoonsor/APK-SoundFlow`，尚未建立）
+- Kotlin 2.1、Compose（BOM 2025.01）＋M3、DataStore；minSdk 30／targetSdk 35；套件名 `tw.hoonsor.soundflow`（LAB 版 `.lab`）
+- 預定加入：Media3（ExoPlayer＋MediaSessionService）、Glance 小工具、Room（本機快取）、Supabase（沿用 27 號的 AI_News 專案）
+- 版本集中在 `gradle/libs.versions.toml`；AGP 8.7.3、Gradle 8.11.1
+- 轉檔與封存：N100 上的服務（yt-dlp、ffmpeg、Google Drive API），尚未建立
+
+## 建置
+
+- 本機：JDK 21（`C:\Users\hoonsor\.jdks\jbr-21.0.11`），**不要用 Android Studio 內附的 JBR 25**（Gradle 8.11 不支援）
+  ```powershell
+  $env:JAVA_HOME="C:\Users\hoonsor\.jdks\jbr-21.0.11"; .\gradlew.bat :app:testProdDebugUnitTest :app:assembleRelease
+  ```
+- 產出：`app/build/outputs/apk/{prod,lab}/release/`；本機沒有簽章 Secrets 時是 debug 簽章，**不能覆蓋安裝正式簽章版**
+- CI（`.github/workflows/build.yml`）：Agent API 相容檢查 → 單元測試 → 正式版＋LAB 版；main 推送更新 `latest` 預先發行版；`vX.Y.Z` tag 建 Release（tag 必須等於 `app/build.gradle.kts` 的 `appVersion`）
+- 發新版：改 `app/build.gradle.kts` 的 `appVersion`（versionCode 自動推導 1.2.3→10203），更新 `PROJECT_STATUS.md` 版本歷程，push tag
+
+## 目錄與架構
+
+```
+app/src/main/java/tw/hoonsor/
+├─ agent/HoonsorAgent.kt          共用 SDK（整份複製自 APK-VoiceHub，不要在這裡改）
+└─ soundflow/
+   ├─ App.kt                      Application＋Graph（手動依賴注入）
+   ├─ agent/AgentProvider.kt      Agent API：describe 讀 assets 的 agent-manifest.json
+   ├─ data/SettingsRepository.kt  設定的唯一寫入入口（DataStore，檔名 settings）
+   └─ ui/
+      ├─ MainActivity.kt、SoundFlowApp.kt   底部四分頁外框（音檔／清單／待播／設定）
+      └─ theme/  SfColors.kt（HSL 色票＋對比度計算）、SfTheme.kt（Compose 主題）、SfIcons.kt（手繪線條圖示）
+```
+
+之後新增的套件依 SOP：`backup/`、`health/`、`player/`（Media3）、`widget/`（Glance）、`data/`（Repository、Room、Supabase）。
+
+## 關鍵設計決策
+
+- **describe 直接讀 `docs/agent-manifest.json`**（Gradle 任務 `copyAgentManifest` 複製進 assets）：manifest 是唯一來源，不可能與 describe 不一致；所以 JVM 測試改成檢查 manifest 符合協定（`AgentManifestTest`）
+- **色票存成 HSL 三元組的純 Kotlin 類別**：可以在 JVM 測試裡算 WCAG 對比度（`ThemeTest`），三個主題都必須通過；Compose 端用 `Hsl.toColor()` 轉換
+- **主題只換顏色**：版面、字體、間距三個主題都一樣（倬 2026-10-23 決定）
+- **字型暫用系統字型**：DESIGN.md 指定 IBM Plex Sans／Mono，打包 ttf 需要下載字型檔，尚未做（列在下一步）
+
+## 絕對不要重踩的坑
+
+- Gradle 用 JDK 25 會失敗；中文路徑會讓 Gradle 出錯（程式碼必須在 `D:\dev\APK-SoundFlow`）
+- `local.properties` 的 `sdk.dir` 用正斜線（`C:/Users/...`）；反斜線沒跳脫會出現「Invalid file path」
+- ContentProvider 比 `Application.onCreate` 先建立：`AgentProvider.onCreate` 要自己呼叫 `Graph.init`
+- `androidx.compose.foundation.layout.weight` 不能 import（是 internal）；`Modifier.weight` 在 Row／Column 的 scope 裡直接用
+- 只複製 `tools/agent_compat_check.py`；語音總控的 `test_agent_compat_check.py` 讀的是它自己的 manifest，複製過來會失敗
+- 下載 YouTube 音軌違反 YouTube 服務條款：僅限倬個人收聽、不公開分享
+
+## 倬的偏好
+
+- 繁體中文（台灣用語）；commit 用 Conventional Commits、繁體中文
+- 深色、HSL、不用原色、按鈕有邊框或對比、手繪向量圖示、資訊密度高、長按多選
+- 每個設定要有「測試」或即時預覽；刪除可復原
 
 ## 規則
 
-- Always：改程式前先 commit；動作一律走 Repository；文件只寫相對路徑；決定與放棄的方案都寫原因
-- Ask：建立 GitHub repo、動 27 號專案的程式或資料表、在 N100 上安裝服務、Google Cloud OAuth 設定
+- Always：改程式前先 commit；寫入一律走 Repository；文件只寫相對路徑；決定與放棄的方案都寫原因；色碼只能寫在 `SfColors.kt`
+- Ask：建立 GitHub repo、動 27 號專案的程式或資料表、在 N100 上安裝服務、Google Cloud OAuth 設定、下載字型等外部檔案
 - Never：提交任何 key／token／簽章檔；讀取或顯示 dotenvx 解密後的值；force push

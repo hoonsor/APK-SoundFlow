@@ -6,3 +6,5 @@ local.properties
 .env.keys
 .idea/
 *.iml
+_trash/
+.kotlin/

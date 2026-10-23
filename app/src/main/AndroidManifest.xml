@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Hoonsor Agent API v1：所有倬的 APP 用同一把簽章宣告同一個權限（規格見 APK-VoiceHub docs/AGENT_PROTOCOL.md） -->
+    <permission
+        android:name="tw.hoonsor.permission.AGENT"
+        android:label="Hoonsor Agent"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="tw.hoonsor.permission.AGENT" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".App"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SoundFlow">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name=".agent.AgentProvider"
+            android:authorities="${applicationId}.agent"
+            android:exported="true"
+            android:permission="tw.hoonsor.permission.AGENT">
+            <intent-filter>
+                <action android:name="tw.hoonsor.agent.PROVIDER" />
+            </intent-filter>
+        </provider>
+    </application>
+</manifest>
