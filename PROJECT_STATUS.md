@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 目前版本 | v0.2.0（Supabase 登入＋Podcast 列表；共用簽章；尚未打 tag，待實機確認） |
+| 目前版本 | v0.2.0（2026-10-25 倬實機確認通過，已打 tag） |
 | 階段 | SOP 第 5 步分版實作中 |
 | GitHub | https://github.com/hoonsor/APK-SoundFlow（public） |
 | 最新測試版 | https://github.com/hoonsor/APK-SoundFlow/releases/tag/latest |
@@ -31,21 +31,21 @@
 
 | 版本 | 日期 | commit | 變更 | 為什麼 |
 |---|---|---|---|---|
-| v0.2.0 | 2026/10/25 | （本次） | 信箱驗證碼登入、Podcast 列表（兩欄網格、下拉重新整理、離線快取）、設定頁帳號與測試連線；Supabase 新增 sf_track 與 nlm_job 同步觸發器 | 先讓新知雷達產生的 Podcast 出現在 App 裡，播放（v0.3.0）才有東西可播 |
+| v0.2.0 | 2026/10/25 | 404d067 | 信箱驗證碼登入、Podcast 列表（兩欄網格、下拉重新整理、離線快取）、設定頁帳號與測試連線；Supabase 新增 sf_track 與 nlm_job 同步觸發器 | 先讓新知雷達產生的 Podcast 出現在 App 裡，播放（v0.3.0）才有東西可播 |
 | v0.1.0 | 2026/10/23 | 7cdaf63 | 骨架：正式版＋LAB 版、3 種佈景主題可切換、底部四分頁、Agent API describe、CI | SOP 第 4 步；先把編譯、簽章、發布管線跑通再做功能 |
 
 ## 待實機驗證
 
-- [ ] 正式版與 LAB 版可同時安裝，名稱分別為 SoundFlow／SoundFlow LAB
+- [x] 正式版與 LAB 版可同時安裝，名稱分別為 SoundFlow／SoundFlow LAB
 - [ ] 設定 → 佈景主題三選一，點了立即換色，重開 App 後仍記得
 - [ ] 語音總控「動作」頁掃描得到 SoundFlow（21 個動作顯示為規劃中）：需要共用簽章版
-- [ ] v0.2.0：音檔分頁輸入信箱 → 收到 6 碼驗證碼信（信裡要有數字，不是只有連結）→ 登入後看到 5 集 Podcast
-- [ ] v0.2.0：關掉網路重開 App，仍看到上次的列表（標「離線」）；往下拉可重新整理
-- [ ] v0.2.0：設定 → 帳號「測試」顯示讀到幾集；登出後音檔分頁回到登入畫面
+- [x] v0.2.0：音檔分頁輸入信箱 → 收到 6 碼驗證碼信（信裡要有數字，不是只有連結）→ 登入後看到 5 集 Podcast
+- [x] v0.2.0：關掉網路重開 App，仍看到上次的列表（標「離線」）；往下拉可重新整理
+- [x] v0.2.0：設定 → 帳號「測試」顯示讀到幾集；登出後音檔分頁回到登入畫面
 
 ## 下一步
 
-1. 倬實機確認 v0.2.0（先解除安裝舊的 debug 簽章版，再裝 latest 的 LAB 版），通過後打 `v0.2.0` tag
+1. v0.3.0：Media3 背景播放＋迷你播放列＋全螢幕播放（進行中）
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
 3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
 4. SOP 第 5 步接下來：v0.3.0 Media3 背景播放＋迷你播放列＋全螢幕播放 → v0.4.0 桌面小工具 → v0.5.0 YouTube 分享＋N100 轉檔服務 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
