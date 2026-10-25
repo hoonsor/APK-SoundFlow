@@ -47,13 +47,28 @@ app/src/main/java/tw/hoonsor/
 └─ soundflow/
    ├─ App.kt                      Application＋Graph（手動依賴注入）
    ├─ agent/AgentProvider.kt      Agent API：describe 讀 assets 的 agent-manifest.json
-   ├─ data/SettingsRepository.kt  設定的唯一寫入入口（DataStore，檔名 settings）
+   ├─ data/
+   │  ├─ SettingsRepository.kt    設定的唯一寫入入口（DataStore，檔名 settings，有進系統備份）
+   │  ├─ AuthRepository.kt        信箱驗證碼登入、權杖刷新、登出（DataStore 檔名 auth，不備份）
+   │  ├─ TrackRepository.kt       音軌清單（讀 sf_track）＋本機 JSON 快取 tracks_<kind>.json
+   │  ├─ SecureBox.kt             Keystore AES-GCM，加密登入權杖
+   │  ├─ Models.kt                Track、Session、SfJson（解析）、SfFormat（顯示格式）、SourceStyle（封面色）
+   │  └─ supabase/SupabaseClient.kt  OkHttp 直接呼叫 GoTrue／PostgREST，錯誤轉中文（SupabaseErrors）
    └─ ui/
-      ├─ MainActivity.kt、SoundFlowApp.kt   底部四分頁外框（音檔／清單／待播／設定）
+      ├─ MainActivity.kt、SoundFlowApp.kt   底部四分頁外框（音檔／清單／待播／設定）、設定頁
+      ├─ TracksScreen.kt、LoginCard.kt     音檔分頁（兩欄網格、下拉重新整理）、登入卡片
       └─ theme/  SfColors.kt（HSL 色票＋對比度計算）、SfTheme.kt（Compose 主題）、SfIcons.kt（手繪線條圖示）
 ```
 
 之後新增的套件依 SOP：`backup/`、`health/`、`player/`（Media3）、`widget/`（Glance）、`data/`（Repository、Room、Supabase）。
+
+## 後端（Supabase AI_News，與 27 號新知雷達共用）
+
+- migration 放 `supabase/migrations/`，用 Supabase MCP 的 apply_migration 套用；**動 AI_News 前要先問倬**（是 27 號的正式資料庫）
+- `sf_track`：App 只讀這張；Podcast 由 `nlm_job` 的 AFTER 觸發器（`soundflow_private.sync_from_nlm_job`）同步，使用者改過的 title 不會被覆蓋
+- `sf_member`：白名單；RLS 開啟但不給任何 policy（用戶端讀不到），判斷用 `soundflow_private.is_member()`（security definer）
+- 新增成員：`insert into public.sf_member (email) values ('<小寫信箱>')`，該信箱也必須已是 Auth 使用者（寄驗證碼用 create_user=false）
+- 音檔網址：`{SUPABASE_URL}/storage/v1/object/public/{storage_bucket}/{storage_path}`（nlm bucket 公開讀取）
 
 ## 關鍵設計決策
 
@@ -70,6 +85,10 @@ app/src/main/java/tw/hoonsor/
 - `androidx.compose.foundation.layout.weight` 不能 import（是 internal）；`Modifier.weight` 在 Row／Column 的 scope 裡直接用
 - 只複製 `tools/agent_compat_check.py`；語音總控的 `test_agent_compat_check.py` 讀的是它自己的 manifest，複製過來會失敗
 - 下載 YouTube 音軌違反 YouTube 服務條款：僅限倬個人收聽、不公開分享
+- **repo 是公開的**：信箱、權杖、service role key 都不能寫進任何檔案（含 migration）；publishable key 可以（本來就公開）
+- PostgREST 的時間格式是 `+00:00` 偏移，要用 `OffsetDateTime.parse` 再轉 Instant（`SfJson.normalizeTimestamp`）
+- GoTrue 的 refresh token 會輪替：每次刷新都要存新的；被拒絕（4xx）才登出，網路錯誤保留登入
+- 白名單外的帳號登入後讀 sf_track 會拿到空陣列（不是錯誤），畫面要提示「確認信箱在白名單」
 
 ## 倬的偏好
 

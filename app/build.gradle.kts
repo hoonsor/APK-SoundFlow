@@ -5,7 +5,7 @@ plugins {
 }
 
 // SemVer → versionCode（1.2.3 → 10203）。發新版：改這一行後 push vX.Y.Z tag（CI 會檢查一致）
-val appVersion = "0.1.0"
+val appVersion = "0.2.0"
 val appVersionCode = appVersion.split(".").map { it.toInt() }.let { (a, b, c) -> a * 10000 + b * 100 + c }
 
 // 共用簽章 hoonsor-release.jks：由 CI 從 Secrets 解出；本機或沒有 Secrets 時退回 debug 簽章
@@ -28,6 +28,9 @@ android {
         targetSdk = 35
         versionCode = appVersionCode
         versionName = appVersion
+        // Supabase（AI_News 專案，與新知雷達共用）。publishable key 本來就是公開金鑰，資料靠 RLS＋登入保護
+        buildConfigField("String", "SUPABASE_URL", "\"https://yczvjdawynmcorvauyey.supabase.co\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_k9bqvK15Ud76GLTFuT1S-A_kELRKi2N\"")
     }
 
     signingConfigs {
@@ -93,8 +96,10 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.squareup.okhttp)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
     testImplementation(libs.json)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -2,11 +2,11 @@
 
 | 項目 | 內容 |
 |---|---|
-| 目前版本 | v0.1.0（骨架；CI 通過，目前是 debug 簽章） |
-| 階段 | SOP 第 1–3 步完成並經倬確認；第 4 步骨架完成，等倬設定共用簽章 |
+| 目前版本 | v0.2.0（Supabase 登入＋Podcast 列表；尚未打 tag，CI 仍是 debug 簽章） |
+| 階段 | SOP 第 5 步分版實作中；共用簽章 Secrets 尚未寫入本 repo |
 | GitHub | https://github.com/hoonsor/APK-SoundFlow（public） |
 | 最新測試版 | https://github.com/hoonsor/APK-SoundFlow/releases/tag/latest |
-| 最後更新 | 2026-10-23 |
+| 最後更新 | 2026-10-25 |
 
 ## 任務
 
@@ -19,16 +19,19 @@
 - [x] 倬確認其餘畫面與 DESIGN.md（2026-10-23 定案）
 - [x] 第 4 步之一：本機骨架 v0.1.0（Gradle、正式版＋LAB 版、版本號推導、簽章讀環境變數、3 種主題可切換、底部四分頁、Agent SDK＋Provider、CI 設定、7 個 JVM 測試通過）
 - [x] 第 4 步之二：建立 public repo `hoonsor/APK-SoundFlow`＋push＋CI 通過（2026-10-23，run 39977475986，3 分 24 秒；latest 預先發行版有 SoundFlow／SoundFlow-LAB 兩個 APK）
-- [ ] 第 4 步之三：倬把 APK-SoundFlow 加進 `setup-hoonsor-signing.ps1` 清單並執行（寫入簽章 Secrets）
+- [ ] 第 4 步之三：倬把 APK-SoundFlow 加進 `setup-hoonsor-signing.ps1` 清單並執行（2026-10-25 檢查：本 repo 仍沒有任何 Secret；APK-VoiceHub 的 Secrets 是 10/24 更新的，看起來清單沒有包含 SoundFlow）
+- [x] v0.2.0 後端：AI_News 建 `sf_member`、`sf_track`、`soundflow_private`（is_member、觸發器），nlm_job 觸發器同步 Podcast，補入既有 5 集；migration 在 `supabase/migrations/20261025_soundflow_init.sql`
+- [x] v0.2.0 App：信箱驗證碼登入（權杖 Keystore AES-GCM 加密）、Podcast 兩欄網格、下拉重新整理、離線快取、錯誤橫幅與重試、設定頁帳號（測試連線、登出）
 - [ ] 打包 IBM Plex Sans／Mono 字型（要下載 ttf，先問倬）
 - [ ] 更新 Claude Project 的 `APP-REGISTRY.md` 一列（本機沒有這份檔案，要在 claude.ai 的 Project 更新）
-- [ ] 後端：Supabase 資料表與觸發器、Edge Function、Google Cloud OAuth
+- [ ] 後端：yt_job、sf_progress、sf_playlist 資料表（用到的版本再建）、Edge Function drive-token、Google Cloud OAuth
 - [ ] N100 轉檔服務與封存工作
 
 ## 版本歷程
 
 | 版本 | 日期 | commit | 變更 | 為什麼 |
 |---|---|---|---|---|
+| v0.2.0 | 2026/10/25 | （本次） | 信箱驗證碼登入、Podcast 列表（兩欄網格、下拉重新整理、離線快取）、設定頁帳號與測試連線；Supabase 新增 sf_track 與 nlm_job 同步觸發器 | 先讓新知雷達產生的 Podcast 出現在 App 裡，播放（v0.3.0）才有東西可播 |
 | v0.1.0 | 2026/10/23 | 7cdaf63 | 骨架：正式版＋LAB 版、3 種佈景主題可切換、底部四分頁、Agent API describe、CI | SOP 第 4 步；先把編譯、簽章、發布管線跑通再做功能 |
 
 ## 待實機驗證
@@ -36,14 +39,26 @@
 - [ ] 正式版與 LAB 版可同時安裝，名稱分別為 SoundFlow／SoundFlow LAB
 - [ ] 設定 → 佈景主題三選一，點了立即換色，重開 App 後仍記得
 - [ ] 語音總控「動作」頁掃描得到 SoundFlow（21 個動作顯示為規劃中）：需要共用簽章版
+- [ ] v0.2.0：音檔分頁輸入信箱 → 收到 6 碼驗證碼信（信裡要有數字，不是只有連結）→ 登入後看到 5 集 Podcast
+- [ ] v0.2.0：關掉網路重開 App，仍看到上次的列表（標「離線」）；往下拉可重新整理
+- [ ] v0.2.0：設定 → 帳號「測試」顯示讀到幾集；登出後音檔分頁回到登入畫面
 
 ## 下一步
 
-1. 倬把 APK-SoundFlow 加進 `setup-hoonsor-signing.ps1` 再執行，之後 CI 產出才是共用簽章（目前 CI 警告「沒有 SIGNING_KEYSTORE_B64」）；設定完 push 任一 commit 讓 CI 重編
+1. 倬把 APK-SoundFlow 加進 `setup-hoonsor-signing.ps1` 再執行，之後 CI 產出才是共用簽章；設定完 push 任一 commit 讓 CI 重編，實機確認 v0.2.0 後再打 `v0.2.0` tag
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
-3. SOP 第 5 步分版實作，建議順序：v0.2.0 Supabase 登入＋Podcast 列表（讀 `nlm_job`／`sf_track`）→ v0.3.0 Media3 背景播放＋迷你播放列＋全螢幕播放 → v0.4.0 桌面小工具 → v0.5.0 YouTube 分享＋N100 轉檔服務 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
+3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
+4. SOP 第 5 步接下來：v0.3.0 Media3 背景播放＋迷你播放列＋全螢幕播放 → v0.4.0 桌面小工具 → v0.5.0 YouTube 分享＋N100 轉檔服務 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-10-25／電腦 A
+- 完成：v0.2.0。Supabase（AI_News）套用 migration `soundflow_init`：私有 schema `soundflow_private`（is_member、觸發器函式、nlm_job 快照 `nlm_job_backup_20261025`）、`sf_member`（白名單，已加入倬的信箱，信箱不寫進 repo）、`sf_track`（RLS：白名單成員可讀與更新）、nlm_job 的 AFTER 觸發器、補入 5 集。App：信箱驗證碼登入、Podcast 兩欄網格、下拉重新整理、離線 JSON 快取、設定頁帳號（測試連線、登出）。JVM 測試 14 項通過，prod／lab release 編譯通過
+- 驗證：未登入以 publishable key 讀 sf_track 回 `[]`（RLS 有效）；nlm 公開音檔可 Range 讀取（206）；觸發器在交易內實測（新增同步、使用者改名在原標題更新時保留）後回滾，無殘留；Supabase 安全檢查只剩 sf_member「有 RLS 無 policy」（刻意：用戶端讀不到白名單）
+- 決定＋原因：登入用信箱驗證碼（倬選；與 43 號同一套，之後 Edge Function 可直接驗 JWT）；App 只讀 sf_track、不讀 nlm_job（不必改 27 號的 RLS，網站完全不受影響）；直接打 Supabase REST（OkHttp）不用官方 SDK（依賴少、錯誤訊息好控制）；publishable key 寫在 build.gradle.kts（本來就是公開金鑰，資料靠 RLS＋登入保護）；本機快取先用 JSON 檔，之後換 Room
+- 放棄＋原因：同步密語登入（不會過期、外洩要兩邊一起換）；在 nlm_job 加 SoundFlow 的 RLS policy（會動到 27 號的權限設定）；把 nlm_job 備份成本機 JSON（內容多為單字卡約 30 KB，改在資料庫私有 schema 建快照，還原一行 SQL）
+- 未完成：共用簽章 Secrets（本 repo 仍沒有）；實機驗證；v0.2.0 tag
+- 環境注意：新增白名單成員要在 Supabase SQL Editor 執行 `insert into public.sf_member (email) values ('<小寫信箱>')`，而且該信箱必須已是 Supabase Auth 使用者（App 寄驗證碼時 create_user=false）
 
 ### 2026-10-23（第 5 段）／電腦 A
 - 完成：倬確認設計；本機骨架 v0.1.0。`gradlew testProdDebugUnitTest assembleRelease` 通過（ThemeTest 4 項含 3 主題 WCAG 對比度、AgentManifestTest 3 項），產出 prod／lab 兩個 release APK（debug 簽章）

@@ -20,8 +20,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,7 +35,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import tw.hoonsor.soundflow.BuildConfig
+import tw.hoonsor.soundflow.Graph
+import tw.hoonsor.soundflow.data.AuthState
+import tw.hoonsor.soundflow.data.TrackKind
 import tw.hoonsor.soundflow.ui.theme.Sf
 import tw.hoonsor.soundflow.ui.theme.SfIcons
 import tw.hoonsor.soundflow.ui.theme.SfPalettes
@@ -79,60 +85,23 @@ fun SoundFlowApp(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit) {
 }
 
 @Composable
-private fun TracksScreen() {
-    val c = Sf.colors
-    var podcast by rememberSaveable { mutableStateOf(true) }
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.padding(start = 16.dp, end = 12.dp, top = 18.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("SoundFlow", style = SfType.pageTitle, color = c.text)
-                Text("尚未連線到資料庫", style = SfType.number, color = c.muted)
-            }
-            Icon(SfIcons.Search, contentDescription = "搜尋", tint = c.text, modifier = Modifier.size(44.dp).padding(11.dp))
-        }
-        Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.border, RoundedCornerShape(14.dp)).padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            listOf(true to "Podcast", false to "YouTube").forEach { (isPod, label) ->
-                val sel = podcast == isPod
-                Box(
-                    Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(10.dp))
-                        .background(if (sel) c.accent else c.surface).clickable(role = Role.Tab) { podcast = isPod },
-                    contentAlignment = Alignment.Center,
-                ) { Text(label, color = if (sel) c.onAccent else c.muted, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-            }
-        }
-        if (podcast) {
-            EmptyCard("新知雷達的 Podcast 會出現在這裡", "在新知雷達網站按「送進 NotebookLM」，產生完就會自動列出。資料庫串接在下一版（v0.2.0）完成。")
-        } else {
-            EmptyCard("在 YouTube 按「分享」送過來", "影片下方點「分享」→ 選 SoundFlow，N100 轉成音檔後出現在這裡。分享功能在之後的版本完成。")
-        }
-    }
-}
-
-@Composable
-private fun EmptyCard(title: String, body: String) {
-    val c = Sf.colors
-    Column(
-        Modifier.padding(12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
-            .border(1.dp, c.border, RoundedCornerShape(18.dp)).padding(horizontal = 16.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(SfIcons.Wave, contentDescription = null, tint = c.accent, modifier = Modifier.size(56.dp))
-        Text(title, color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text(body, color = c.muted, style = SfType.body)
-    }
-}
-
-@Composable
 private fun PlaceholderScreen(title: String, body: String) {
-    Column(Modifier.fillMaxSize()) {
-        Text(title, style = SfType.pageTitle, color = Sf.colors.text, modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 6.dp))
+    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+        Text(title, style = SfType.pageTitle, color = Sf.colors.text, modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 14.dp))
         EmptyCard("還沒有內容", body)
     }
+}
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {
+    val c = Sf.colors
+    Text(title, style = SfType.section, color = c.muted, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface)
+            .border(1.dp, c.border, RoundedCornerShape(16.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) { content() }
+    Spacer(Modifier.height(18.dp))
 }
 
 @Composable
@@ -141,12 +110,7 @@ private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit)
     val context = LocalContext.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
         Text("設定", style = SfType.pageTitle, color = c.text, modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 14.dp))
-        Text("外觀", style = SfType.section, color = c.muted, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface)
-                .border(1.dp, c.border, RoundedCornerShape(16.dp)).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        Section("外觀") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("佈景主題", style = SfType.rowTitle, color = c.text, modifier = Modifier.weight(1f))
                 Text("點了立即套用", style = SfType.body, color = c.muted)
@@ -155,11 +119,45 @@ private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit)
                 SfThemeId.entries.forEach { id -> ThemeCard(id, selected = id == theme, onClick = { onThemeChange(id) }, modifier = Modifier.weight(1f)) }
             }
         }
-        Spacer(Modifier.height(18.dp))
+        Section("帳號與雲端") { AccountRows() }
         Text(
             "SoundFlow v${BuildConfig.VERSION_NAME} · ${context.packageName}",
             style = SfType.number, color = c.muted, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         )
+    }
+}
+
+@Composable
+private fun AccountRows() {
+    val c = Sf.colors
+    val auth by Graph.auth.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    var testResult by rememberSaveable { mutableStateOf<String?>(null) }
+    var testing by rememberSaveable { mutableStateOf(false) }
+    when (val a = auth) {
+        is AuthState.SignedIn -> {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Supabase 帳號", style = SfType.rowTitle, color = c.text)
+                    Text("已登入 · ${a.email}", style = SfType.body, color = c.muted)
+                }
+                SfButton(if (testing) "測試中…" else "測試", primary = false, enabled = !testing, onClick = {
+                    testing = true; testResult = null
+                    scope.launch {
+                        Graph.tracks.refresh(TrackKind.PODCAST)
+                        val s = Graph.tracks.state(TrackKind.PODCAST).value
+                        testResult = s.error ?: "連線正常，讀到 ${s.items.size} 集 Podcast"
+                        testing = false
+                    }
+                })
+            }
+            testResult?.let { Text(it, style = SfType.body, color = if (it.startsWith("連線正常")) c.accentText else c.danger) }
+            SfButton("登出", primary = false, onClick = {
+                scope.launch { Graph.auth.signOut(); Graph.tracks.clear(); testResult = null }
+            }, modifier = Modifier.fillMaxWidth())
+        }
+        AuthState.SignedOut -> Text("尚未登入。到「音檔」分頁用信箱驗證碼登入。", style = SfType.body, color = c.muted)
+        AuthState.Loading -> Text("讀取登入狀態中…", style = SfType.body, color = c.muted)
     }
 }
 

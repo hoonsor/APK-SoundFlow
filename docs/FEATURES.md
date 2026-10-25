@@ -13,7 +13,7 @@
 
 | 編號 | 功能 | 優先 | 語音動作 | 狀態 | 倬確認 |
 |---|---|---|---|---|---|
-| F01 | 「Podcast」分頁：列出新知雷達送進 NotebookLM 產生的所有 Podcast（讀 Supabase，新知網站產生後自動出現） | P0 | track_list、track_play | 規劃中 | 2026-10-23 |
+| F01 | 「Podcast」分頁：列出新知雷達送進 NotebookLM 產生的所有 Podcast（讀 Supabase，新知網站產生後自動出現） | P0 | track_list、track_play | v0.2.0 列表（播放 v0.3.0） | 2026-10-23 |
 | F02 | 「YouTube」分頁：列出從 YouTube 分享進來、已抽成音檔的項目 | P0 | track_list、track_play | 規劃中 | 2026-10-23 |
 | F03 | 接收分享：在 YouTube App 按「分享 → SoundFlow」，App 送出轉檔工作後立刻關閉分享畫面（不打斷看影片），顯示「已送出」 | P0 | youtube_add | 規劃中 | 2026-10-23 |
 | F04 | 轉檔進度：YouTube 分頁上方顯示「排隊中／轉檔中／失敗」的項目；失敗顯示原因並可重試或取消 | P0 | youtube_job_list | 規劃中 | 2026-10-23 |
