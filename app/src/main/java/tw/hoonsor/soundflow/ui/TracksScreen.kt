@@ -1,6 +1,10 @@
 package tw.hoonsor.soundflow.ui
 
-import android.widget.Toast
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +22,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.core.content.ContextCompat
+import tw.hoonsor.soundflow.player.TrackProgress
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -136,6 +142,16 @@ private fun TrackGrid(kind: TrackKind, state: TrackListState) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val today = LocalDate.now(ZoneId.of("Asia/Taipei"))
+    val progress by Graph.progress.state.collectAsState()
+    val nowPlaying by Graph.player.state.collectAsState()
+    // Android 13+ 要通知權限，通知列才看得到播放控制；拒絕也照樣能播
+    val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    fun play(index: Int) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        Graph.player.playOrToggle(state.items, index)
+    }
     PullToRefreshBox(
         isRefreshing = state.loading,
         onRefresh = { scope.launch { Graph.tracks.refresh(kind) } },
@@ -163,36 +179,42 @@ private fun TrackGrid(kind: TrackKind, state: TrackListState) {
                     }
                 }
             }
-            items(state.items, key = { it.id }) { t ->
-                TrackCard(t, today) {
-                    Toast.makeText(context, "播放功能在下一版（v0.3.0）完成", Toast.LENGTH_SHORT).show()
-                }
+            itemsIndexed(state.items, key = { _, t -> t.id }) { i, t ->
+                TrackCard(t, today, progress[t.id], playing = nowPlaying.currentId == t.id) { play(i) }
             }
         }
     }
 }
 
 @Composable
-private fun TrackCard(t: Track, today: LocalDate, onClick: () -> Unit) {
+private fun TrackCard(t: Track, today: LocalDate, p: TrackProgress?, playing: Boolean, onClick: () -> Unit) {
     val c = Sf.colors
     val style = SourceStyle.of(t.channel)
     val shape = RoundedCornerShape(14.dp)
     Column(
-        Modifier.clip(shape).background(c.surface).border(1.dp, c.border, shape)
-            .clickable(role = Role.Button, onClickLabel = "播放", onClick = onClick),
+        Modifier.clip(shape).background(if (playing) c.accentSoft else c.surface).border(1.dp, if (playing) c.accent else c.border, shape)
+            .clickable(role = Role.Button, onClickLabel = if (playing) "播放或暫停" else "播放", onClick = onClick),
     ) {
-        Box(Modifier.fillMaxWidth().height(86.dp).background(SfSemantic.cover(style.hue).toColor()).padding(8.dp)) {
-            Text(style.label, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopStart))
-            Text(style.tag, color = Color.White.copy(alpha = 0.9f), fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterStart))
-            Text(
-                SfFormat.duration(t.durationSec), style = SfType.number, color = Color.White,
-                modifier = Modifier.align(Alignment.BottomEnd).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.45f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-            )
+        Box(Modifier.fillMaxWidth().height(86.dp).background(SfSemantic.cover(style.hue).toColor())) {
+            Box(Modifier.fillMaxSize().padding(8.dp)) {
+                Text(style.label, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopStart))
+                if (p?.played == true) {
+                    Icon(SfIcons.Check, contentDescription = "已聽完", tint = Color.White, modifier = Modifier.align(Alignment.TopEnd).size(16.dp))
+                }
+                Text(style.tag, color = Color.White.copy(alpha = 0.9f), fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterStart))
+                Text(
+                    SfFormat.duration(t.durationSec), style = SfType.number, color = Color.White,
+                    modifier = Modifier.align(Alignment.BottomEnd).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.45f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+            if (p != null && p.inProgress) {
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(p.fraction).height(3.dp).background(c.accent))
+            }
         }
         Column(Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                t.title, style = SfType.cardTitle, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                t.title, style = SfType.cardTitle, color = if (p?.played == true) c.muted else c.text, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.heightIn(min = 35.dp),
             )
             Text(

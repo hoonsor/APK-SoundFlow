@@ -90,6 +90,17 @@ object SfJson {
     fun isValidOtp(s: String) = Regex("^\\d{6}$").matches(s.trim())
 }
 
+object SfUrls {
+    /** 音檔串流網址；tier = drive 的封存檔要等 v0.7（Drive 權杖）才能播，先回 null */
+    fun audio(baseUrl: String, t: Track): String? {
+        if (t.tier != "supabase") return null
+        val bucket = t.storageBucket ?: return null
+        val path = t.storagePath ?: return null
+        val enc = path.split('/').joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+        return "$baseUrl/storage/v1/object/public/$bucket/$enc"
+    }
+}
+
 /** 顯示用格式 */
 object SfFormat {
     /** 秒 → 9:47、1:02:15 */

@@ -27,4 +27,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStart() {
+        super.onStart()
+        // 服務還在播（例如從通知列點回來）時，迷你播放列要立刻出現
+        Graph.player.connect()
+    }
 }

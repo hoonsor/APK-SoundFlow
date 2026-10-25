@@ -51,12 +51,18 @@ app/src/main/java/tw/hoonsor/
    │  ├─ SettingsRepository.kt    設定的唯一寫入入口（DataStore，檔名 settings，有進系統備份）
    │  ├─ AuthRepository.kt        信箱驗證碼登入、權杖刷新、登出（DataStore 檔名 auth，不備份）
    │  ├─ TrackRepository.kt       音軌清單（讀 sf_track）＋本機 JSON 快取 tracks_<kind>.json
+   │  ├─ ProgressRepository.kt    收聽進度（progress.json），播放服務與畫面共用
    │  ├─ SecureBox.kt             Keystore AES-GCM，加密登入權杖
    │  ├─ Models.kt                Track、Session、SfJson（解析）、SfFormat（顯示格式）、SourceStyle（封面色）
    │  └─ supabase/SupabaseClient.kt  OkHttp 直接呼叫 GoTrue／PostgREST，錯誤轉中文（SupabaseErrors）
+   ├─ player/
+   │  ├─ PlaybackService.kt       Media3 MediaSessionService＋ExoPlayer；自訂指令：睡眠計時、跳過靜音（狀態放 session extras）
+   │  ├─ PlayerConnection.kt      App 端唯一的播放控制入口（MediaController），輸出 PlayerUi
+   │  └─ PlaybackLogic.kt         純邏輯：Speed、Repeat、ProgressRules、Queue、TimeText（PlaybackLogicTest）
    └─ ui/
       ├─ MainActivity.kt、SoundFlowApp.kt   底部四分頁外框（音檔／清單／待播／設定）、設定頁
       ├─ TracksScreen.kt、LoginCard.kt     音檔分頁（兩欄網格、下拉重新整理）、登入卡片
+      ├─ PlayerViews.kt                   迷你播放列、全螢幕播放頁、倍速與睡眠計時面板
       └─ theme/  SfColors.kt（HSL 色票＋對比度計算）、SfTheme.kt（Compose 主題）、SfIcons.kt（手繪線條圖示）
 ```
 
@@ -89,6 +95,9 @@ app/src/main/java/tw/hoonsor/
 - PostgREST 的時間格式是 `+00:00` 偏移，要用 `OffsetDateTime.parse` 再轉 Instant（`SfJson.normalizeTimestamp`）
 - GoTrue 的 refresh token 會輪替：每次刷新都要存新的；被拒絕（4xx）才登出，網路錯誤保留登入
 - 白名單外的帳號登入後讀 sf_track 會拿到空陣列（不是錯誤），畫面要提示「確認信箱在白名單」
+- 畫面不要直接碰 Media3：一律經過 `Graph.player`（PlayerConnection）；之後的小工具、語音動作也連同一個 MediaSession
+- MediaItem 的 mediaId＝sf_track.id；分頁種類放在 metadata extras 的 `sf.kind`（服務靠它套用分頁倍速）
+- Android 13+ 沒有通知權限時，背景播放照常，但通知列看不到控制；第一次播放時才請求權限
 
 ## 倬的偏好
 

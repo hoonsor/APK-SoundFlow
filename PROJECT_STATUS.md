@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 目前版本 | v0.2.0（2026-10-25 倬實機確認通過，已打 tag） |
+| 目前版本 | v0.3.0（背景播放＋迷你播放列＋全螢幕播放；待實機確認，未打 tag）；上一個正式版 v0.2.0 |
 | 階段 | SOP 第 5 步分版實作中 |
 | GitHub | https://github.com/hoonsor/APK-SoundFlow（public） |
 | 最新測試版 | https://github.com/hoonsor/APK-SoundFlow/releases/tag/latest |
@@ -21,6 +21,7 @@
 - [x] 第 4 步之二：建立 public repo `hoonsor/APK-SoundFlow`＋push＋CI 通過（2026-10-23，run 39977475986，3 分 24 秒；latest 預先發行版有 SoundFlow／SoundFlow-LAB 兩個 APK）
 - [x] 第 4 步之三：共用簽章（2026-10-25）：`setup-hoonsor-signing.ps1` 清單補上 APK-SoundFlow，倬在 A 電腦執行；CI run 40198619549 用共用簽章編譯，prod／lab APK 憑證 SHA-256 `51:4E:C0:…:54:88:25` 與 `~/hoonsor-signing/fingerprint.txt` 一致
 - [x] v0.2.0 後端：AI_News 建 `sf_member`、`sf_track`、`soundflow_private`（is_member、觸發器），nlm_job 觸發器同步 Podcast，補入既有 5 集；migration 在 `supabase/migrations/20261025_soundflow_init.sql`
+- [x] v0.3.0：Media3 PlaybackService（通知列、鎖定畫面、藍牙、音訊焦點、拔耳機暫停）、迷你播放列、全螢幕播放（進度拖曳、±15／30 秒、上下首、倍速 0.5–3×、循環、隨機、睡眠計時含淡出、跳過靜音、接下來 3 集）、依分頁記住倍速、本機收聽進度與自動標記已聽完
 - [x] v0.2.0 App：信箱驗證碼登入（權杖 Keystore AES-GCM 加密）、Podcast 兩欄網格、下拉重新整理、離線快取、錯誤橫幅與重試、設定頁帳號（測試連線、登出）
 - [ ] 打包 IBM Plex Sans／Mono 字型（要下載 ttf，先問倬）
 - [ ] 更新 Claude Project 的 `APP-REGISTRY.md` 一列（本機沒有這份檔案，要在 claude.ai 的 Project 更新）
@@ -31,6 +32,7 @@
 
 | 版本 | 日期 | commit | 變更 | 為什麼 |
 |---|---|---|---|---|
+| v0.3.0 | 2026/10/25 | （本次） | Media3 背景播放（通知列、鎖定畫面、藍牙）、迷你播放列、全螢幕播放、倍速依分頁記住、循環／隨機、睡眠計時（淡出）、跳過靜音、本機收聽進度與已聽完標記 | 讓 App 真的能聽；背景播放是桌面小工具（v0.4.0）與語音動作的基礎 |
 | v0.2.0 | 2026/10/25 | 404d067 | 信箱驗證碼登入、Podcast 列表（兩欄網格、下拉重新整理、離線快取）、設定頁帳號與測試連線；Supabase 新增 sf_track 與 nlm_job 同步觸發器 | 先讓新知雷達產生的 Podcast 出現在 App 裡，播放（v0.3.0）才有東西可播 |
 | v0.1.0 | 2026/10/23 | 7cdaf63 | 骨架：正式版＋LAB 版、3 種佈景主題可切換、底部四分頁、Agent API describe、CI | SOP 第 4 步；先把編譯、簽章、發布管線跑通再做功能 |
 
@@ -42,15 +44,29 @@
 - [x] v0.2.0：音檔分頁輸入信箱 → 收到 6 碼驗證碼信（信裡要有數字，不是只有連結）→ 登入後看到 5 集 Podcast
 - [x] v0.2.0：關掉網路重開 App，仍看到上次的列表（標「離線」）；往下拉可重新整理
 - [x] v0.2.0：設定 → 帳號「測試」顯示讀到幾集；登出後音檔分頁回到登入畫面
+- [ ] v0.3.0：點卡片開始播放（第一次會問通知權限），迷你播放列出現；點迷你播放列打開全螢幕播放頁
+- [ ] v0.3.0：關螢幕、切到別的 App 仍繼續播；通知列與鎖定畫面有播放／暫停／上下首；藍牙耳機按鍵有效；來電或拔耳機會暫停
+- [ ] v0.3.0：倍速改成 1.5×，切到下一集仍是 1.5×；YouTube 分頁的倍速獨立（之後有 YouTube 音檔時驗證）
+- [ ] v0.3.0：拖曳進度、倒轉 15／快轉 30、單曲循環、隨機播放、跳過靜音都正常
+- [ ] v0.3.0：睡眠計時 15 分鐘（或「本集結束」）到時音量淡出後暫停
+- [ ] v0.3.0：聽到一半關掉 App，再點同一集從中斷處（往回 3 秒）繼續；聽完的卡片有勾勾、標題變淡、進度條消失
+- [ ] v0.3.0：從最近使用的 App 滑掉：播放中會繼續、暫停中則通知消失
 
 ## 下一步
 
-1. v0.3.0：Media3 背景播放＋迷你播放列＋全螢幕播放（進行中）
+1. 倬實機確認 v0.3.0（上方「待實機驗證」清單），通過後打 `v0.3.0` tag；接著 v0.4.0 桌面小工具
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
 3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
 4. SOP 第 5 步接下來：v0.3.0 Media3 背景播放＋迷你播放列＋全螢幕播放 → v0.4.0 桌面小工具 → v0.5.0 YouTube 分享＋N100 轉檔服務 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-10-25（第 2 段）／電腦 A
+- 完成：倬實機確認 v0.2.0 → 打 tag，正式 Release 有 SoundFlow／SoundFlow-LAB v0.2.0 兩個 APK。v0.3.0：Media3 1.5.1（`player/PlaybackService.kt`、`player/PlayerConnection.kt`）、迷你播放列與全螢幕播放（`ui/PlayerViews.kt`）、`data/ProgressRepository.kt`（progress.json）、SettingsRepository 加依分頁倍速、卡片顯示進度與已聽完。JVM 測試 23 項通過（新增 PlaybackLogicTest 9 項），prod／lab release 編譯通過
+- 決定＋原因：播放服務與 App 同 process，直接用 Graph 的 Repository（不必跨 process 傳資料）；睡眠計時與跳過靜音做成 MediaSession 自訂指令（關掉 App 畫面也照常運作，之後小工具與語音動作也能用）；倍速「播放時改了就成為該分頁的預設」（F12 不必另做設定頁就能用）；進度先只存手機（同步到 Supabase 要新增 sf_progress 資料表，動 AI_News 前要先問倬）；續播往回 3 秒、播到 95% 或剩 30 秒算聽完、重聽超過 5 秒改回聽到一半
+- 放棄＋原因：自己用 MediaPlayer 刻播放器（音訊焦點、通知、藍牙都要自己處理，容易出錯）；波形進度條（沒有真實波形資料，畫假的會誤導，改用一般進度條）
+- 未完成：實機驗證；v0.3.0 tag；進度雲端同步、手動標記已聽、搖一搖延長睡眠、倒轉快轉秒數設定
+- 環境注意：無新增環境變數；Media3 的通知圖示目前用 Media3 預設圖示
 
 ### 2026-10-25／電腦 A
 - 完成：v0.2.0。Supabase（AI_News）套用 migration `soundflow_init`：私有 schema `soundflow_private`（is_member、觸發器函式、nlm_job 快照 `nlm_job_backup_20261025`）、`sf_member`（白名單，已加入倬的信箱，信箱不寫進 repo）、`sf_track`（RLS：白名單成員可讀與更新）、nlm_job 的 AFTER 觸發器、補入 5 集。App：信箱驗證碼登入、Podcast 兩欄網格、下拉重新整理、離線 JSON 快取、設定頁帳號（測試連線、登出）。JVM 測試 14 項通過，prod／lab release 編譯通過

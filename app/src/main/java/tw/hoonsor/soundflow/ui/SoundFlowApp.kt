@@ -57,7 +57,13 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 @Composable
 fun SoundFlowApp(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit) {
     var tab by rememberSaveable { mutableStateOf(Tab.TRACKS) }
+    var playerOpen by rememberSaveable { mutableStateOf(false) }
+    val ui = rememberPlayerUi()
     val c = Sf.colors
+    if (playerOpen && ui.currentId != null) {
+        Box(Modifier.fillMaxSize().background(c.bg).safeDrawingPadding()) { FullPlayer(ui) { playerOpen = false } }
+        return
+    }
     Column(Modifier.fillMaxSize().background(c.bg).safeDrawingPadding()) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
@@ -67,6 +73,7 @@ fun SoundFlowApp(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit) {
                 Tab.SETTINGS -> SettingsScreen(theme, onThemeChange)
             }
         }
+        if (ui.currentId != null) MiniPlayer(ui) { playerOpen = true }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
             Tab.entries.forEach { t ->
                 val selected = t == tab

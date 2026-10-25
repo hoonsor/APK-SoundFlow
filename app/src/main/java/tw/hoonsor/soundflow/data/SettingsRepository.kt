@@ -2,7 +2,10 @@ package tw.hoonsor.soundflow.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.flow.first
+import tw.hoonsor.soundflow.player.Speed
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -19,5 +22,16 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setTheme(id: SfThemeId) {
         context.settingsStore.edit { it[themeKey] = id.key }
+    }
+
+    // 倍速依分頁記住（F12）：Podcast 預設 1.3、YouTube 預設 1.0；播放時改了就成為該分頁的新預設
+    private fun speedKey(kind: TrackKind) = floatPreferencesKey("speed_${kind.key}")
+    private fun defaultSpeed(kind: TrackKind) = if (kind == TrackKind.PODCAST) 1.3f else 1.0f
+
+    suspend fun speed(kind: TrackKind): Float =
+        context.settingsStore.data.first()[speedKey(kind)] ?: defaultSpeed(kind)
+
+    suspend fun setSpeed(kind: TrackKind, v: Float) {
+        context.settingsStore.edit { it[speedKey(kind)] = Speed.clamp(v) }
     }
 }

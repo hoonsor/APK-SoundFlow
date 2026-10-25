@@ -6,9 +6,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import tw.hoonsor.soundflow.data.AuthRepository
+import tw.hoonsor.soundflow.data.ProgressRepository
 import tw.hoonsor.soundflow.data.SettingsRepository
 import tw.hoonsor.soundflow.data.TrackRepository
 import tw.hoonsor.soundflow.data.supabase.SupabaseClient
+import tw.hoonsor.soundflow.player.PlayerConnection
 
 class App : Application() {
     override fun onCreate() {
@@ -25,6 +27,10 @@ object Graph {
         private set
     lateinit var tracks: TrackRepository
         private set
+    lateinit var progress: ProgressRepository
+        private set
+    lateinit var player: PlayerConnection
+        private set
 
     /** 跟 App 同壽命的背景工作（讀登入狀態等） */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -35,6 +41,9 @@ object Graph {
         settings = SettingsRepository(app)
         auth = AuthRepository(app, supabase)
         tracks = TrackRepository(app, supabase, auth)
+        progress = ProgressRepository(app)
+        player = PlayerConnection(app, progress, appScope)
         appScope.launch { auth.load() }
+        appScope.launch { progress.load() }
     }
 }
