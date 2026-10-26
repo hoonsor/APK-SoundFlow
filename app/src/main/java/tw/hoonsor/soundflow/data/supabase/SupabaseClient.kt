@@ -91,6 +91,8 @@ object SupabaseErrors {
             "signups not allowed" in lower || "user not found" in lower -> "這個信箱不在 Supabase 的使用者名單，請先在後台加入"
             action == "驗證" && ("expired" in lower || "invalid" in lower) -> "驗證碼不對或已過期，請重新寄一次"
             "refresh token" in lower || (code == 400 && action == "更新登入") -> "登入已失效，請重新登入"
+            // RLS 擋下寫入（42501）：多半是登入的信箱不在 sf_member 白名單，不是登入失效
+            "row-level security" in lower || "42501" in body -> "目前登入的信箱不在 SoundFlow 白名單，無法$action"
             code == 401 || code == 403 -> "沒有權限$action，請重新登入"
             code >= 500 -> "Supabase 暫時有問題（$code），請稍後再試"
             detail.isNotBlank() -> "$action 失敗：$detail"

@@ -85,6 +85,12 @@ object SfJson {
         )
     }
 
+    /** rpc/sf_whoami 回傳 {"email": "...", "member": true}（PostgREST 對純量 json 可能再包一層字串） */
+    fun parseWhoami(raw: String): Boolean {
+        val text = raw.trim().let { if (it.startsWith("\"")) JSONArray("[$it]").getString(0) else it }
+        return JSONObject(text).optBoolean("member", false)
+    }
+
     fun normalizeEmail(s: String) = s.trim().lowercase()
     fun isValidEmail(s: String) = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(normalizeEmail(s))
     /** 驗證碼長度是 Supabase 專案層級的設定（AI_News 與記帳網站共用，目前 8 碼），App 不寫死：接受 6～10 位數 */

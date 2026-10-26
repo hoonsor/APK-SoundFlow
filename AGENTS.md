@@ -110,7 +110,8 @@ worker/                          N100 轉檔服務（Python 標準庫＋yt-dlp�
 - yt-dlp 2025.11 起抓 YouTube 需要外部 JavaScript 執行環境＋yt-dlp-ejs：用 `pip install "yt-dlp[default]"`，N100 用既有 Node（`--js-runtimes node`）
 - Supabase 免費方案單檔 50 MB：worker 依長度降位元率，超過 3 小時拒絕
 - `.gitattributes` 讓 .sh／.service／.timer／.py 一律 LF；Windows CRLF 的 shell 腳本在 N100 會跑不起來
-- ShareActivity 不能用 Activity 的 lifecycleScope 做送出（它馬上 finish）：用 `Graph.appScope`，Toast 用 applicationContext
+- ShareActivity 的送出放在 `Graph.appScope`（使用者提早關卡片也照樣送出）；結果用畫面底部卡片顯示，**不要用 Toast**：ColorOS 不顯示背景 App 的 Toast（v0.4.0 實測分享後完全沒反應）
+- **能登入 ≠ 能用 SoundFlow**：Auth Users 是登入帳號（三個服務共用），`sf_member` 才是 SoundFlow 白名單。白名單外的帳號讀到空陣列、寫入回 403（42501）；App 登入後呼叫 `rpc/sf_whoami` 判斷，顯示「這個信箱還沒開通」（v0.4.2）
 
 ## 倬的偏好
 

@@ -138,6 +138,7 @@ private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit)
 private fun AccountRows() {
     val c = Sf.colors
     val auth by Graph.auth.state.collectAsState()
+    val member by Graph.auth.member.collectAsState()
     val scope = rememberCoroutineScope()
     var testResult by rememberSaveable { mutableStateOf<String?>(null) }
     var testing by rememberSaveable { mutableStateOf(false) }
@@ -147,10 +148,16 @@ private fun AccountRows() {
                 Column(Modifier.weight(1f)) {
                     Text("Supabase 帳號", style = SfType.rowTitle, color = c.text)
                     Text("已登入 · ${a.email}", style = SfType.body, color = c.muted)
+                    when (member) {
+                        true -> Text("已開通 SoundFlow", style = SfType.body, color = c.accentText)
+                        false -> Text("這個信箱不在 SoundFlow 白名單", style = SfType.body, color = c.danger)
+                        null -> Unit
+                    }
                 }
                 SfButton(if (testing) "測試中…" else "測試", primary = false, enabled = !testing, onClick = {
                     testing = true; testResult = null
                     scope.launch {
+                        Graph.auth.checkMembership()
                         Graph.tracks.refresh(TrackKind.PODCAST)
                         val s = Graph.tracks.state(TrackKind.PODCAST).value
                         testResult = s.error ?: "連線正常，讀到 ${s.items.size} 集 Podcast"

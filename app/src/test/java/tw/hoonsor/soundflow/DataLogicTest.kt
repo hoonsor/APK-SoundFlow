@@ -96,5 +96,15 @@ class DataLogicTest {
         assertEquals("驗證碼不對或已過期，請重新寄一次", SupabaseErrors.message("驗證", 403, """{"msg":"Token has expired or is invalid"}"""))
         assertEquals("登入已失效，請重新登入", SupabaseErrors.message("更新登入", 400, """{"msg":"Invalid Refresh Token: Already Used"}"""))
         assertTrue(SupabaseErrors.message("讀取資料", 503, "").contains("503"))
+        assertEquals(
+            "目前登入的信箱不在 SoundFlow 白名單，無法送出轉檔",
+            SupabaseErrors.message("送出轉檔", 403, """{"code":"42501","message":"new row violates row-level security policy for table \"yt_job\""}"""),
+        )
+    }
+
+    @Test fun whoami() {
+        assertTrue(SfJson.parseWhoami("""{"email":"me@example.com","member":true}"""))
+        assertFalse(SfJson.parseWhoami("""{"email":"x@example.com","member":false}"""))
+        assertTrue(SfJson.parseWhoami("\"{\\\"email\\\":\\\"me@example.com\\\",\\\"member\\\":true}\""))
     }
 }

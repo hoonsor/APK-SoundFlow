@@ -85,10 +85,12 @@ fun TracksScreen() {
     Column(Modifier.fillMaxSize()) {
         Header(state, signedIn)
         KindTabs(kind) { kind = it }
-        when (auth) {
+        val member by Graph.auth.member.collectAsState()
+        when (val a = auth) {
             AuthState.Loading -> Unit
             AuthState.SignedOut -> Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp)) { LoginCard() }
-            is AuthState.SignedIn -> TrackGrid(kind, state)
+            is AuthState.SignedIn ->
+                if (member == false) NotMemberCard(a.email) else TrackGrid(kind, state)
         }
     }
 }
@@ -224,6 +226,29 @@ private fun TrackCard(t: Track, today: LocalDate, p: TrackProgress?, playing: Bo
                 "${style.label} · ${SfFormat.relativeDate(t.createdAt, today)}", style = SfType.meta, color = c.muted,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
+        }
+    }
+}
+
+/** 登入的信箱不在 sf_member 白名單：讀到的都是空的、送出會被拒，直接講清楚 */
+@Composable
+private fun NotMemberCard(email: String) {
+    val c = Sf.colors
+    val scope = rememberCoroutineScope()
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        Modifier.padding(12.dp).fillMaxWidth().clip(shape).background(c.dangerSoft).border(1.dp, c.dangerLine, shape).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("這個信箱還沒開通 SoundFlow", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "目前登入的是 $email，它不在 SoundFlow 的白名單，所以看不到 Podcast，也不能送出 YouTube 影片。" +
+                "請登出改用已開通的信箱，或在 Supabase 把這個信箱加進 sf_member。",
+            color = c.text, style = SfType.body,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SfButton("重新檢查", primary = false, onClick = { scope.launch { Graph.auth.checkMembership() } })
+            SfButton("登出", primary = true, onClick = { scope.launch { Graph.auth.signOut(); Graph.tracks.clear() } }, modifier = Modifier.weight(1f))
         }
     }
 }

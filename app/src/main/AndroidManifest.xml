@@ -36,12 +36,11 @@
             </intent-filter>
         </activity>
 
-        <!-- 接收 YouTube 分享：沒有畫面，送出後立刻關閉 -->
+        <!-- 接收 YouTube 分享：透明畫面＋底部小卡片顯示結果，2 秒後自動關閉 -->
         <activity
             android:name=".share.ShareActivity"
             android:exported="true"
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:label="@string/share_label"
             android:taskAffinity=""
             android:theme="@style/Theme.SoundFlow.Invisible">

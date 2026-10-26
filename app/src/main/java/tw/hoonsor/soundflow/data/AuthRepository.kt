@@ -36,17 +36,35 @@ class AuthRepository(
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
     val state: StateFlow<AuthState> = _state
 
-    suspend fun load() = mutex.withLock {
-        val enc = context.authStore.data.first()[sessionKey]
-        session = enc?.let { box.decrypt(it) }?.let { decode(it) }
-        _state.value = session?.let { AuthState.SignedIn(it.email) } ?: AuthState.SignedOut
+    /** 目前登入的信箱在不在 SoundFlow 白名單；null＝還沒確認（例如沒網路） */
+    private val _member = MutableStateFlow<Boolean?>(null)
+    val member: StateFlow<Boolean?> = _member
+
+    suspend fun load() {
+        mutex.withLock {
+            val enc = context.authStore.data.first()[sessionKey]
+            session = enc?.let { box.decrypt(it) }?.let { decode(it) }
+            _state.value = session?.let { AuthState.SignedIn(it.email) } ?: AuthState.SignedOut
+        }
+        if (session != null) checkMembership()
     }
 
     suspend fun sendCode(email: String) = api.sendOtp(SfJson.normalizeEmail(email))
 
-    suspend fun verify(email: String, code: String) = mutex.withLock {
-        val s = SfJson.parseSession(api.verifyOtp(SfJson.normalizeEmail(email), code.trim()), now())
-        save(s.copy(email = s.email.ifBlank { SfJson.normalizeEmail(email) }))
+    suspend fun verify(email: String, code: String) {
+        mutex.withLock {
+            val s = SfJson.parseSession(api.verifyOtp(SfJson.normalizeEmail(email), code.trim()), now())
+            save(s.copy(email = s.email.ifBlank { SfJson.normalizeEmail(email) }))
+        }
+        checkMembership()
+    }
+
+    /** 白名單外的帳號讀資料只會拿到空陣列、寫入被拒；先問清楚才能給正確提示 */
+    suspend fun checkMembership() {
+        _member.value = runCatching {
+            val raw = api.write("POST", "/rest/v1/rpc/sf_whoami", "{}", accessToken(), action = "確認白名單", prefer = "return=representation")
+            SfJson.parseWhoami(raw)
+        }.getOrNull() ?: _member.value
     }
 
     /** 取得有效的 access token；快過期（60 秒內）就先刷新。沒登入或刷新失敗丟 [SfException] */
@@ -78,6 +96,7 @@ class AuthRepository(
 
     private suspend fun clear() {
         session = null
+        _member.value = null
         context.authStore.edit { it.remove(sessionKey) }
         _state.value = AuthState.SignedOut
     }
