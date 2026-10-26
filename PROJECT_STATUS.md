@@ -28,7 +28,7 @@
 - [x] v0.4.0 後端：`yt_job`（成員只能新增排隊、重試、取消）、`sf_worker_heartbeat`、`sf_track.video_id`、私人 bucket `sf`（成員登入後可讀）；migration `supabase/migrations/20261026_youtube_jobs.sql`
 - [x] v0.4.0 App：分享接收（ShareActivity，送出後立刻關閉）、YouTube 分頁的轉檔面板（N100 狀態、排隊／轉檔中／失敗＋重試／取消、貼上網址）、沒網路先存手機自動補送、私人音檔播放自動帶登入權杖
 - [x] v0.4.0 N100 服務程式：`worker/`（soundflow_worker.py、systemd 單元、每日更新 yt-dlp、install.sh）
-- [ ] v0.4.0 N100 安裝：倬確認後執行 install.sh；`set-key` 由倬自己 ssh 進去輸入 service role key；`start` 啟動
+- [x] v0.4.0 N100 安裝（2026-10-26 12:01 上線）：倬同意金鑰放 `~/.config/soundflow/worker.env`（600，資料夾 700）並自己執行 set-key；服務 `soundflow-worker` 啟用、timer `soundflow-ytdlp-update` 啟用；yt-dlp 2026.10.21 用 Node 讀 YouTube 資訊實測成功；心跳已寫入 sf_worker_heartbeat
 - [ ] 後端：sf_progress、sf_playlist 資料表（用到的版本再建）、Edge Function drive-token、Google Cloud OAuth
 - [ ] N100 封存工作（Supabase → Google Drive）
 
@@ -65,7 +65,7 @@
 
 ## 下一步
 
-1. N100 安裝轉檔服務（見 `worker/README.md`；install、set-key（倬自己輸入金鑰）、start），倬實機確認 v0.4.0 與 v0.3.0 → 打 tag；接著 v0.5.0 桌面小工具
+1. 倬實機確認 v0.4.0（分享一支短影片走完整流程）與 v0.3.0 → 打 tag；接著 v0.5.0 桌面小工具。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
 3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
 4. SOP 第 5 步接下來（2026-10-26 調整順序）：v0.5.0 桌面小工具 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
@@ -75,9 +75,9 @@
 ### 2026-10-26／電腦 A
 - 完成：倬回報 YouTube 分享選單沒有 SoundFlow（原排 v0.5.0，尚未實作），要求提前 → v0.4.0。Supabase 套用 migration `soundflow_youtube_jobs`；App 新增 `share/ShareActivity.kt`、`data/YouTube.kt`（網址解析、工作 JSON、N100 狀態文字）、`data/JobRepository.kt`、`ui/JobsPanel.kt`，PlaybackService 改用 ResolvingDataSource 對私人 bucket 帶權杖；`worker/` N100 服務程式。JVM 測試 29 項、worker 測試 5 項通過；release 編譯通過；未登入時新增 yt_job 401、私人 bucket 讀不到（400）
 - 決定＋原因：YouTube 音檔放**私人** bucket（只給白名單成員、不公開散布，比照 YouTube 條款風險最小化）；App 播放時每個請求才向 AuthRepository 取權杖（長時間播放權杖過期也能續）；N100 每 15 秒輪詢而非 Realtime（標準庫就能寫、斷線不必重連邏輯，最多慢 15 秒）；yt-dlp 用 N100 既有的 Node 22 當 JS 執行環境（2025.11 起 YouTube 需要，不必另裝 Deno）、`pip install "yt-dlp[default]"` 帶 yt-dlp-ejs；位元率依長度 64／48／32 kbps、超過 3 小時拒絕（免費方案單檔 50 MB）；暫時性錯誤自動重試一次
-- 決定待倬確認：N100 金鑰不用 dotenvx，改放 `~/.config/soundflow/worker.env`（600），原因：N100 沒裝 dotenvx，裝了就要把所有專案共用的私鑰放到 N100
+- 決定（倬同日確認）：N100 金鑰不用 dotenvx，改放 `~/.config/soundflow/worker.env`（600），原因：N100 沒裝 dotenvx，裝了就要把所有專案共用的私鑰放到 N100。同日 N100 安裝並啟動，心跳正常
 - 放棄＋原因：公開 bucket（任何拿到網址的人都能下載 YouTube 音檔）；Supabase Realtime（要處理 websocket 斷線）；Deno（N100 已有 Node）
-- 未完成：N100 安裝與啟動；實機驗證 v0.3.0／v0.4.0；tag
+- 未完成：實機驗證 v0.3.0／v0.4.0（N100 端尚未實際轉過一支影片）；tag
 - 環境注意：N100 要有 service role key（倬執行 `install.sh set-key` 自己輸入）；`.gitattributes` 讓 .sh／.service／.py 一律 LF，否則複製到 N100 會出錯
 
 ### 2026-10-25（第 2 段）／電腦 A

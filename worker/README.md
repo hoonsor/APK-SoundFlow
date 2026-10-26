@@ -39,7 +39,7 @@ service role key 在 Supabase 後台：Project Settings → API Keys → `servic
 
 ### 金鑰為什麼不用 dotenvx
 
-N100 沒有安裝 dotenvx；若要在 N100 用 dotenvx 解密，就得把**所有專案共用的** `DOTENV_PRIVATE_KEY` 放到 N100 上，外洩影響範圍更大。所以這個服務只放它自己需要的一把金鑰：`~/.config/soundflow/worker.env`，權限 600、資料夾 700，不在任何 Git repo 裡，由 systemd 的 `EnvironmentFile` 讀取。（倬確認後定案）
+N100 沒有安裝 dotenvx；若要在 N100 用 dotenvx 解密，就得把**所有專案共用的** `DOTENV_PRIVATE_KEY` 放到 N100 上，外洩影響範圍更大。所以這個服務只放它自己需要的一把金鑰：`~/.config/soundflow/worker.env`，權限 600、資料夾 700，不在任何 Git repo 裡，由 systemd 的 `EnvironmentFile` 讀取。（倬 2026-10-26 確認）
 
 ## 日常維運
 
