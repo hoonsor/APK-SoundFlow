@@ -8,7 +8,14 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import kotlinx.coroutines.runBlocking
+import tw.hoonsor.soundflow.BuildConfig
+import tw.hoonsor.soundflow.data.SfUrls
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
@@ -47,7 +54,15 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         Graph.init(application)
+        // 私人 bucket（YouTube 音檔）：每次請求才向 AuthRepository 取有效權杖，長時間播放權杖過期也會自動換新
+        val http = DefaultHttpDataSource.Factory()
+        val authed = ResolvingDataSource.Factory(http) { spec ->
+            if (!SfUrls.needsAuth(spec.uri.toString())) return@Factory spec
+            val token = runBlocking { runCatching { Graph.auth.accessToken() }.getOrNull() } ?: return@Factory spec
+            spec.withAdditionalHeaders(mapOf("Authorization" to "Bearer $token", "apikey" to BuildConfig.SUPABASE_KEY))
+        }
         player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, authed)))
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(),
                 /* handleAudioFocus = */ true,

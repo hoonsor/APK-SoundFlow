@@ -2,11 +2,11 @@
 
 | 項目 | 內容 |
 |---|---|
-| 目前版本 | v0.3.0（背景播放＋迷你播放列＋全螢幕播放；待實機確認，未打 tag）；上一個正式版 v0.2.0 |
-| 階段 | SOP 第 5 步分版實作中 |
+| 目前版本 | v0.4.0（YouTube 分享＋N100 轉檔；App 已推上，N100 服務待倬設定金鑰後啟動）；v0.3.0 播放功能一起待實機確認；上一個正式版 v0.2.0 |
+| 階段 | SOP 第 5 步分版實作中（倬 2026-10-26 要求 YouTube 分享提前到 v0.4.0，先測它再測播放與小工具） |
 | GitHub | https://github.com/hoonsor/APK-SoundFlow（public） |
 | 最新測試版 | https://github.com/hoonsor/APK-SoundFlow/releases/tag/latest |
-| 最後更新 | 2026-10-25 |
+| 最後更新 | 2026-10-26 |
 
 ## 任務
 
@@ -25,14 +25,19 @@
 - [x] v0.2.0 App：信箱驗證碼登入（權杖 Keystore AES-GCM 加密）、Podcast 兩欄網格、下拉重新整理、離線快取、錯誤橫幅與重試、設定頁帳號（測試連線、登出）
 - [ ] 打包 IBM Plex Sans／Mono 字型（要下載 ttf，先問倬）
 - [ ] 更新 Claude Project 的 `APP-REGISTRY.md` 一列（本機沒有這份檔案，要在 claude.ai 的 Project 更新）
-- [ ] 後端：yt_job、sf_progress、sf_playlist 資料表（用到的版本再建）、Edge Function drive-token、Google Cloud OAuth
-- [ ] N100 轉檔服務與封存工作
+- [x] v0.4.0 後端：`yt_job`（成員只能新增排隊、重試、取消）、`sf_worker_heartbeat`、`sf_track.video_id`、私人 bucket `sf`（成員登入後可讀）；migration `supabase/migrations/20261026_youtube_jobs.sql`
+- [x] v0.4.0 App：分享接收（ShareActivity，送出後立刻關閉）、YouTube 分頁的轉檔面板（N100 狀態、排隊／轉檔中／失敗＋重試／取消、貼上網址）、沒網路先存手機自動補送、私人音檔播放自動帶登入權杖
+- [x] v0.4.0 N100 服務程式：`worker/`（soundflow_worker.py、systemd 單元、每日更新 yt-dlp、install.sh）
+- [ ] v0.4.0 N100 安裝：倬確認後執行 install.sh；`set-key` 由倬自己 ssh 進去輸入 service role key；`start` 啟動
+- [ ] 後端：sf_progress、sf_playlist 資料表（用到的版本再建）、Edge Function drive-token、Google Cloud OAuth
+- [ ] N100 封存工作（Supabase → Google Drive）
 
 ## 版本歷程
 
 | 版本 | 日期 | commit | 變更 | 為什麼 |
 |---|---|---|---|---|
-| v0.3.0 | 2026/10/25 | （本次） | Media3 背景播放（通知列、鎖定畫面、藍牙）、迷你播放列、全螢幕播放、倍速依分頁記住、循環／隨機、睡眠計時（淡出）、跳過靜音、本機收聽進度與已聽完標記 | 讓 App 真的能聽；背景播放是桌面小工具（v0.4.0）與語音動作的基礎 |
+| v0.4.0 | 2026/10/26 | （本次） | YouTube 分享進 SoundFlow、N100 轉檔服務（yt-dlp＋ffmpeg 轉 Opus）、YouTube 分頁轉檔進度與重試、私人音檔空間 | 倬要求提前：先能把 YouTube 影片變成音檔，再測播放與小工具 |
+| v0.3.0 | 2026/10/25 | 663edbe | Media3 背景播放（通知列、鎖定畫面、藍牙）、迷你播放列、全螢幕播放、倍速依分頁記住、循環／隨機、睡眠計時（淡出）、跳過靜音、本機收聽進度與已聽完標記 | 讓 App 真的能聽；背景播放是桌面小工具（v0.4.0）與語音動作的基礎 |
 | v0.2.0 | 2026/10/25 | 404d067 | 信箱驗證碼登入、Podcast 列表（兩欄網格、下拉重新整理、離線快取）、設定頁帳號與測試連線；Supabase 新增 sf_track 與 nlm_job 同步觸發器 | 先讓新知雷達產生的 Podcast 出現在 App 裡，播放（v0.3.0）才有東西可播 |
 | v0.1.0 | 2026/10/23 | 7cdaf63 | 骨架：正式版＋LAB 版、3 種佈景主題可切換、底部四分頁、Agent API describe、CI | SOP 第 4 步；先把編譯、簽章、發布管線跑通再做功能 |
 
@@ -51,15 +56,29 @@
 - [ ] v0.3.0：睡眠計時 15 分鐘（或「本集結束」）到時音量淡出後暫停
 - [ ] v0.3.0：聽到一半關掉 App，再點同一集從中斷處（往回 3 秒）繼續；聽完的卡片有勾勾、標題變淡、進度條消失
 - [ ] v0.3.0：從最近使用的 App 滑掉：播放中會繼續、暫停中則通知消失
+- [ ] v0.4.0：YouTube App → 分享 → 選單裡有「SoundFlow 轉成音檔」→ 點了馬上回到 YouTube，跳出「已送到 SoundFlow」
+- [ ] v0.4.0：SoundFlow 的 YouTube 分頁顯示「N100 X 分鐘前在線」與「轉檔中」，幾分鐘後音檔出現、可播放（含背景播放）
+- [ ] v0.4.0：分享同一支影片兩次 → 顯示「已經在排隊」或「已經在 YouTube 分頁」
+- [ ] v0.4.0：分享私人或會員限定影片 → 顯示失敗原因，可按「重試」或「移除」
+- [ ] v0.4.0：飛航模式下分享 → 顯示「先存在手機」，關掉飛航模式打開 App 後自動送出
+- [ ] v0.4.0：「貼上網址」可以手動加入
 
 ## 下一步
 
-1. 倬實機確認 v0.3.0（上方「待實機驗證」清單），通過後打 `v0.3.0` tag；接著 v0.4.0 桌面小工具
+1. N100 安裝轉檔服務（見 `worker/README.md`；install、set-key（倬自己輸入金鑰）、start），倬實機確認 v0.4.0 與 v0.3.0 → 打 tag；接著 v0.5.0 桌面小工具
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
 3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
-4. SOP 第 5 步接下來：v0.3.0 Media3 背景播放＋迷你播放列＋全螢幕播放 → v0.4.0 桌面小工具 → v0.5.0 YouTube 分享＋N100 轉檔服務 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
+4. SOP 第 5 步接下來（2026-10-26 調整順序）：v0.5.0 桌面小工具 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-10-26／電腦 A
+- 完成：倬回報 YouTube 分享選單沒有 SoundFlow（原排 v0.5.0，尚未實作），要求提前 → v0.4.0。Supabase 套用 migration `soundflow_youtube_jobs`；App 新增 `share/ShareActivity.kt`、`data/YouTube.kt`（網址解析、工作 JSON、N100 狀態文字）、`data/JobRepository.kt`、`ui/JobsPanel.kt`，PlaybackService 改用 ResolvingDataSource 對私人 bucket 帶權杖；`worker/` N100 服務程式。JVM 測試 29 項、worker 測試 5 項通過；release 編譯通過；未登入時新增 yt_job 401、私人 bucket 讀不到（400）
+- 決定＋原因：YouTube 音檔放**私人** bucket（只給白名單成員、不公開散布，比照 YouTube 條款風險最小化）；App 播放時每個請求才向 AuthRepository 取權杖（長時間播放權杖過期也能續）；N100 每 15 秒輪詢而非 Realtime（標準庫就能寫、斷線不必重連邏輯，最多慢 15 秒）；yt-dlp 用 N100 既有的 Node 22 當 JS 執行環境（2025.11 起 YouTube 需要，不必另裝 Deno）、`pip install "yt-dlp[default]"` 帶 yt-dlp-ejs；位元率依長度 64／48／32 kbps、超過 3 小時拒絕（免費方案單檔 50 MB）；暫時性錯誤自動重試一次
+- 決定待倬確認：N100 金鑰不用 dotenvx，改放 `~/.config/soundflow/worker.env`（600），原因：N100 沒裝 dotenvx，裝了就要把所有專案共用的私鑰放到 N100
+- 放棄＋原因：公開 bucket（任何拿到網址的人都能下載 YouTube 音檔）；Supabase Realtime（要處理 websocket 斷線）；Deno（N100 已有 Node）
+- 未完成：N100 安裝與啟動；實機驗證 v0.3.0／v0.4.0；tag
+- 環境注意：N100 要有 service role key（倬執行 `install.sh set-key` 自己輸入）；`.gitattributes` 讓 .sh／.service／.py 一律 LF，否則複製到 N100 會出錯
 
 ### 2026-10-25（第 2 段）／電腦 A
 - 完成：倬實機確認 v0.2.0 → 打 tag，正式 Release 有 SoundFlow／SoundFlow-LAB v0.2.0 兩個 APK。v0.3.0：Media3 1.5.1（`player/PlaybackService.kt`、`player/PlayerConnection.kt`）、迷你播放列與全螢幕播放（`ui/PlayerViews.kt`）、`data/ProgressRepository.kt`（progress.json）、SettingsRepository 加依分頁倍速、卡片顯示進度與已聽完。JVM 測試 23 項通過（新增 PlaybackLogicTest 9 項），prod／lab release 編譯通過

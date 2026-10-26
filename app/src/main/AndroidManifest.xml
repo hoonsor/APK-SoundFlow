@@ -36,6 +36,22 @@
             </intent-filter>
         </activity>
 
+        <!-- 接收 YouTube 分享：沒有畫面，送出後立刻關閉 -->
+        <activity
+            android:name=".share.ShareActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:label="@string/share_label"
+            android:taskAffinity=""
+            android:theme="@style/Theme.SoundFlow.Invisible">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <!-- Media3 播放服務：通知列、鎖定畫面、藍牙按鍵；之後小工具與語音動作也連這裡 -->
         <service
             android:name=".player.PlaybackService"

@@ -85,6 +85,7 @@ class PlaybackLogicTest {
         val (a, b, c) = SfJson.parseTracks(raw)
         assertEquals("https://x.supabase.co/storage/v1/object/public/nlm/yt-00I5wAy9i3M-0816bdf6009c.m4a", SfUrls.audio("https://x.supabase.co", a))
         assertNull(SfUrls.audio("https://x.supabase.co", b))   // Drive 封存檔要等 v0.7
-        assertEquals("https://x.supabase.co/storage/v1/object/public/sf/yt/%E6%9C%89%20%E7%A9%BA%E7%99%BD.opus", SfUrls.audio("https://x.supabase.co", c))
+        // sf 是私人 bucket：用 authenticated 路徑，播放服務會自動帶登入權杖
+        assertEquals("https://x.supabase.co/storage/v1/object/authenticated/sf/yt/%E6%9C%89%20%E7%A9%BA%E7%99%BD.opus", SfUrls.audio("https://x.supabase.co", c))
     }
 }

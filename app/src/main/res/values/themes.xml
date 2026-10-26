@@ -5,4 +5,10 @@
         <item name="android:statusBarColor">@color/bg</item>
         <item name="android:navigationBarColor">@color/bg</item>
     </style>
+
+    <!-- 分享接收：完全透明、沒有動畫，使用者感覺不到離開 YouTube -->
+    <style name="Theme.SoundFlow.Invisible" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoDisplay">false</item>
+    </style>
 </resources>

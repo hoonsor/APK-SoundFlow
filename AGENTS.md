@@ -52,9 +52,12 @@ app/src/main/java/tw/hoonsor/
    │  ├─ AuthRepository.kt        信箱驗證碼登入、權杖刷新、登出（DataStore 檔名 auth，不備份）
    │  ├─ TrackRepository.kt       音軌清單（讀 sf_track）＋本機 JSON 快取 tracks_<kind>.json
    │  ├─ ProgressRepository.kt    收聽進度（progress.json），播放服務與畫面共用
+   │  ├─ JobRepository.kt         YouTube 轉檔工作：送出、列出、重試、取消、離線暫存 pending_shares.json
+   │  ├─ YouTube.kt               純邏輯：YouTubeLink（分享文字→影片 id）、JobJson、WorkerStatus
    │  ├─ SecureBox.kt             Keystore AES-GCM，加密登入權杖
    │  ├─ Models.kt                Track、Session、SfJson（解析）、SfFormat（顯示格式）、SourceStyle（封面色）
    │  └─ supabase/SupabaseClient.kt  OkHttp 直接呼叫 GoTrue／PostgREST，錯誤轉中文（SupabaseErrors）
+   ├─ share/ShareActivity.kt      接收「分享 → SoundFlow 轉成音檔」：沒有畫面，送出後立刻關閉，結果用 Toast
    ├─ player/
    │  ├─ PlaybackService.kt       Media3 MediaSessionService＋ExoPlayer；自訂指令：睡眠計時、跳過靜音（狀態放 session extras）
    │  ├─ PlayerConnection.kt      App 端唯一的播放控制入口（MediaController），輸出 PlayerUi
@@ -63,6 +66,8 @@ app/src/main/java/tw/hoonsor/
       ├─ MainActivity.kt、SoundFlowApp.kt   底部四分頁外框（音檔／清單／待播／設定）、設定頁
       ├─ TracksScreen.kt、LoginCard.kt     音檔分頁（兩欄網格、下拉重新整理）、登入卡片
       ├─ PlayerViews.kt                   迷你播放列、全螢幕播放頁、倍速與睡眠計時面板
+      ├─ JobsPanel.kt                     YouTube 分頁上方：N100 狀態、轉檔工作、貼上網址
+worker/                          N100 轉檔服務（Python 標準庫＋yt-dlp＋ffmpeg），部署與金鑰見 worker/README.md
       └─ theme/  SfColors.kt（HSL 色票＋對比度計算）、SfTheme.kt（Compose 主題）、SfIcons.kt（手繪線條圖示）
 ```
 
@@ -74,7 +79,10 @@ app/src/main/java/tw/hoonsor/
 - `sf_track`：App 只讀這張；Podcast 由 `nlm_job` 的 AFTER 觸發器（`soundflow_private.sync_from_nlm_job`）同步，使用者改過的 title 不會被覆蓋
 - `sf_member`：白名單；RLS 開啟但不給任何 policy（用戶端讀不到），判斷用 `soundflow_private.is_member()`（security definer）
 - 新增成員：`insert into public.sf_member (email) values ('<小寫信箱>')`，該信箱也必須已是 Auth 使用者（寄驗證碼用 create_user=false）
-- 音檔網址：`{SUPABASE_URL}/storage/v1/object/public/{storage_bucket}/{storage_path}`（nlm bucket 公開讀取）
+- 音檔網址：nlm bucket 公開 → `/storage/v1/object/public/...`；sf bucket（YouTube）**私人** → `/storage/v1/object/authenticated/...`，播放服務的 ResolvingDataSource 會自動加 `Authorization`（`SfUrls.PRIVATE_BUCKETS`）
+- `yt_job`：App 只能新增 queued、改成 queued（重試）或 cancelled；processing／done／failed 只有 N100（service role）能寫
+- `sf_worker_heartbeat`：N100 每 5 分鐘寫；App 顯示「N100 X 分鐘前在線」，超過 15 分鐘當離線
+- N100 部署：systemd 使用者服務 `soundflow-worker`＋timer `soundflow-ytdlp-update`；**在 N100 裝服務、改 crontab 前要先問倬**
 
 ## 關鍵設計決策
 
@@ -98,6 +106,10 @@ app/src/main/java/tw/hoonsor/
 - 畫面不要直接碰 Media3：一律經過 `Graph.player`（PlayerConnection）；之後的小工具、語音動作也連同一個 MediaSession
 - MediaItem 的 mediaId＝sf_track.id；分頁種類放在 metadata extras 的 `sf.kind`（服務靠它套用分頁倍速）
 - Android 13+ 沒有通知權限時，背景播放照常，但通知列看不到控制；第一次播放時才請求權限
+- yt-dlp 2025.11 起抓 YouTube 需要外部 JavaScript 執行環境＋yt-dlp-ejs：用 `pip install "yt-dlp[default]"`，N100 用既有 Node（`--js-runtimes node`）
+- Supabase 免費方案單檔 50 MB：worker 依長度降位元率，超過 3 小時拒絕
+- `.gitattributes` 讓 .sh／.service／.timer／.py 一律 LF；Windows CRLF 的 shell 腳本在 N100 會跑不起來
+- ShareActivity 不能用 Activity 的 lifecycleScope 做送出（它馬上 finish）：用 `Graph.appScope`，Toast 用 applicationContext
 
 ## 倬的偏好
 

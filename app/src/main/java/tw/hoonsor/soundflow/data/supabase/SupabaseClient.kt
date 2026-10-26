@@ -46,6 +46,15 @@ class SupabaseClient(private val baseUrl: String, private val apiKey: String) {
         execute(req, action = "讀取資料")
     }
 
+    /** PostgREST 寫入（POST 新增、PATCH 更新）；回傳內容視 Prefer 而定 */
+    suspend fun write(method: String, path: String, json: String, bearer: String, action: String, prefer: String = "return=minimal"): String =
+        withContext(Dispatchers.IO) {
+            val req = Request.Builder().url(baseUrl + path)
+                .header("apikey", apiKey).header("Authorization", "Bearer $bearer").header("Prefer", prefer)
+                .method(method, json.toRequestBody(jsonType)).build()
+            execute(req, action)
+        }
+
     private suspend fun post(path: String, body: JSONObject, action: String, bearer: String? = null): String = withContext(Dispatchers.IO) {
         val req = Request.Builder().url(baseUrl + path)
             .header("apikey", apiKey)
@@ -78,6 +87,7 @@ object SupabaseErrors {
         val lower = detail.lowercase()
         return when {
             code == 429 || "rate limit" in lower -> "寄太多次了，請過幾分鐘再試"
+            code == 409 || "duplicate key" in lower -> "這支影片已經在排隊了"
             "signups not allowed" in lower || "user not found" in lower -> "這個信箱不在 Supabase 的使用者名單，請先在後台加入"
             action == "驗證" && ("expired" in lower || "invalid" in lower) -> "驗證碼不對或已過期，請重新寄一次"
             "refresh token" in lower || (code == 400 && action == "更新登入") -> "登入已失效，請重新登入"

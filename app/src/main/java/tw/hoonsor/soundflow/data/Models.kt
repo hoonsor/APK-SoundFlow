@@ -97,8 +97,14 @@ object SfUrls {
         val bucket = t.storageBucket ?: return null
         val path = t.storagePath ?: return null
         val enc = path.split('/').joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
-        return "$baseUrl/storage/v1/object/public/$bucket/$enc"
+        // sf bucket 是私人的：播放服務送出請求時會自動帶上登入權杖（PlaybackService 的 ResolvingDataSource）
+        val access = if (bucket in PRIVATE_BUCKETS) "authenticated" else "public"
+        return "$baseUrl/storage/v1/object/$access/$bucket/$enc"
     }
+
+    val PRIVATE_BUCKETS = setOf("sf")
+
+    fun needsAuth(url: String) = "/storage/v1/object/authenticated/" in url
 }
 
 /** 顯示用格式 */

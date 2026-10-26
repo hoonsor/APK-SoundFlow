@@ -1,0 +1,18 @@
+[Unit]
+Description=SoundFlow YouTube 轉檔服務
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/apps/soundflow-worker
+# 金鑰檔只在 N100 本機、權限 600，不在任何 Git repo 裡（見 worker/README.md）
+EnvironmentFile=%h/.config/soundflow/worker.env
+Environment=SFW_YTDLP=%h/apps/soundflow-worker/.venv/bin/yt-dlp
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=SFW_JS_RUNTIME=node
+ExecStart=%h/apps/soundflow-worker/.venv/bin/python soundflow_worker.py
+Restart=always
+RestartSec=30
+Nice=10
+
+[Install]
+WantedBy=default.target

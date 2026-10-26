@@ -1,0 +1,7 @@
+[Unit]
+Description=SoundFlow：更新 yt-dlp（YouTube 常改版，舊版會失效）
+
+[Service]
+Type=oneshot
+ExecStart=%h/apps/soundflow-worker/.venv/bin/pip install --quiet --upgrade "yt-dlp[default]"
+ExecStartPost=/usr/bin/systemctl --user try-restart soundflow-worker.service

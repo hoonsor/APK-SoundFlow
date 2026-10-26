@@ -164,6 +164,9 @@ private fun TrackGrid(kind: TrackKind, state: TrackListState) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
+            if (kind == TrackKind.YOUTUBE) {
+                item(span = { GridItemSpan(2) }) { JobsPanel() }
+            }
             state.error?.let { msg ->
                 item(span = { GridItemSpan(2) }) { ErrorBanner(msg) { scope.launch { Graph.tracks.refresh(kind) } } }
             }
@@ -175,7 +178,7 @@ private fun TrackGrid(kind: TrackKind, state: TrackListState) {
                             "在新知雷達網站按「送進 NotebookLM」，產生完就會出現在這裡（往下拉可重新整理）。如果網站上明明有，請確認你的信箱已加進 SoundFlow 白名單。",
                         )
                     } else {
-                        EmptyCard("在 YouTube 按「分享」送過來", "影片下方點「分享」→ 選 SoundFlow，N100 轉成音檔後出現在這裡。分享功能在之後的版本完成。")
+                        EmptyCard("在 YouTube 按「分享」送過來", "影片下方點「分享」→ 選「SoundFlow 轉成音檔」，N100 轉好後（通常幾分鐘）出現在這裡。")
                     }
                 }
             }

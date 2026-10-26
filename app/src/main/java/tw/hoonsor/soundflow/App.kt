@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import tw.hoonsor.soundflow.data.AuthRepository
+import tw.hoonsor.soundflow.data.AuthState
+import tw.hoonsor.soundflow.data.JobRepository
 import tw.hoonsor.soundflow.data.ProgressRepository
 import tw.hoonsor.soundflow.data.SettingsRepository
 import tw.hoonsor.soundflow.data.TrackRepository
@@ -29,6 +31,8 @@ object Graph {
         private set
     lateinit var progress: ProgressRepository
         private set
+    lateinit var jobs: JobRepository
+        private set
     lateinit var player: PlayerConnection
         private set
 
@@ -42,8 +46,13 @@ object Graph {
         auth = AuthRepository(app, supabase)
         tracks = TrackRepository(app, supabase, auth)
         progress = ProgressRepository(app)
+        jobs = JobRepository(app, supabase, auth)
         player = PlayerConnection(app, progress, appScope)
-        appScope.launch { auth.load() }
+        appScope.launch {
+            auth.load()
+            // 沒網路時存下的 YouTube 分享，登入狀態確定後補送
+            if (auth.state.value is AuthState.SignedIn) runCatching { jobs.flushPending() }
+        }
         appScope.launch { progress.load() }
     }
 }
