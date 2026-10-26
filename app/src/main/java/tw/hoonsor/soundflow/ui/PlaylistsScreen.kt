@@ -119,7 +119,7 @@ fun PlaylistsScreen() {
             if (lib.playlists.isEmpty()) item { EmptyCard("還沒有自訂清單", "按「＋ 新增清單」，或在音檔分頁長按多選後「加入清單」。") }
             itemsIndexed(lib.playlists, key = { _, p -> p.id }) { _, p ->
                 val tracks = p.trackIds.mapNotNull { id -> all.firstOrNull { it.id == id } }
-                PlaylistRow(p.name, tracks, onOpen = { open = p.id }, onPlay = { Graph.player.playAll(tracks, shuffle = false) })
+                PlaylistRow(p.name, tracks, onOpen = { open = p.id }, onPlay = { Graph.player.playAll(tracks, shuffle = false, source = p.name) })
             }
             lib.error?.let { item { Text(it, color = c.danger, style = SfType.body) } }
         }
@@ -194,8 +194,8 @@ private fun PlaylistDetail(title: String, playlistId: String?, tracks: List<Trac
             if (playlistId != null) SfButton(if (editing) "完成" else "編輯", primary = false, onClick = { editing = !editing })
         }
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SfButton("▶ 播放全部", primary = true, enabled = tracks.isNotEmpty(), onClick = { Graph.player.playAll(tracks, shuffle = false) }, modifier = Modifier.weight(1f))
-            SfButton("隨機播放", primary = false, enabled = tracks.isNotEmpty(), onClick = { Graph.player.playAll(tracks, shuffle = true) }, modifier = Modifier.weight(1f))
+            SfButton("▶ 播放全部", primary = true, enabled = tracks.isNotEmpty(), onClick = { Graph.player.playAll(tracks, shuffle = false, source = title) }, modifier = Modifier.weight(1f))
+            SfButton("隨機播放", primary = false, enabled = tracks.isNotEmpty(), onClick = { Graph.player.playAll(tracks, shuffle = true, source = title) }, modifier = Modifier.weight(1f))
         }
         if (editing && playlistId != null) {
             Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -214,7 +214,7 @@ private fun PlaylistDetail(title: String, playlistId: String?, tracks: List<Trac
                 val shape = RoundedCornerShape(12.dp)
                 Row(
                     Modifier.fillMaxWidth().clip(shape).background(if (playing) c.accentSoft else c.surface).border(1.dp, if (playing) c.accent else c.border, shape)
-                        .clickable(role = Role.Button, enabled = !editing) { Graph.player.playOrToggle(tracks, i) }.padding(8.dp),
+                        .clickable(role = Role.Button, enabled = !editing) { Graph.player.playOrToggle(tracks, i, title) }.padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Text("${i + 1}", style = SfType.number, color = c.muted, modifier = Modifier.padding(start = 4.dp))

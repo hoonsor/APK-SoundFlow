@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 目前版本 | v0.5.0（2026-10-27 倬實機確認通過，已打 tag）；v0.6.0 桌面小工具開發中 |
+| 目前版本 | v0.6.0（桌面小工具；待實機確認，未打 tag）；上一個正式版 v0.5.0 |
 | 階段 | SOP 第 5 步分版實作中（倬 2026-10-26 要求 YouTube 分享提前到 v0.4.0，先測它再測播放與小工具） |
 | GitHub | https://github.com/hoonsor/APK-SoundFlow（public） |
 | 最新測試版 | https://github.com/hoonsor/APK-SoundFlow/releases/tag/latest |
@@ -32,6 +32,7 @@
 - [x] v0.5.0 後端：`sf_label`、`sf_track_label`、`sf_playlist`、`sf_playlist_item`（成員可讀寫）、sf_track 加 `delete_source`／`purge_requested_at`／`purged_at`；`sf_whoami` 改 security invoker；migration `20261026_library.sql`
 - [x] v0.5.0 App：檢視模式（精簡列表／兩欄網格，依分頁記住）、依標籤分組（可收合）、排序 8 種、篩選（收聽狀態＋多個標籤）、長按多選（加入清單、貼標籤、標為已聽、刪除）、單集「⋯」選單（播放、加入清單、標籤、已聽／未聽、改名、刪除）、刪除可復原（snackbar）、清單分頁（4 個智慧清單、自訂清單 CRUD、播放全部／隨機、上移／下移、移出）、設定頁「資料管理」（顏色標籤管理、垃圾桶：還原、立即永久刪除、全部清空）
 - [x] v0.5.0 N100：worker 0.5.0 每分鐘處理垃圾桶（7 天到期或立即永久刪除）：YouTube 刪 sf 檔；Podcast 只有選了「連新知雷達的音檔一起刪」才刪 nlm 檔；保留 sf_track 列（hidden、purged_at），避免 nlm_job 觸發器加回來；已部署並重啟
+- [x] v0.6.0：桌面小工具 `widget/SoundFlowWidget.kt`（Glance 1.1.1，PreferencesGlanceStateDefinition）、`widget/WidgetPickerActivity.kt`（換清單）、`player/QueueSnapshot.kt`（MediaItems 共用建構、清單快照、小工具狀態）；PlaybackService 事件時推送小工具（合併 0.5 秒、播放中每 30 秒刷新進度）、onPlaybackResumption
 - [ ] 後端：sf_progress（進度雲端同步）、Edge Function drive-token、Google Cloud OAuth
 - [ ] N100 封存工作（Supabase → Google Drive）
 
@@ -39,6 +40,7 @@
 
 | 版本 | 日期 | commit | 變更 | 為什麼 |
 |---|---|---|---|---|
+| v0.6.0 | 2026/10/26 | （本次） | 桌面小工具（Glance，可調整大小：4×1 精簡、4×2 標準、4×3 大型含接下來 3 集）：播放／暫停、上下首、倒轉 15／快轉 30、倍速循環、循環模式、換清單小視窗；App 沒開或重開機也能直接按播放（清單快照）；支援 Android 13+ 系統「繼續播放」；跟隨佈景主題 | 倬的核心需求：不打開 App，在桌面就能播放與切換 |
 | v0.5.0 | 2026/10/26 | 5b75b66 | 清單管理：精簡列表／兩欄網格、依標籤分組、排序（日期／標題／長度／進度）、篩選（收聽狀態、顏色標籤）、長按多選批次動作、顏色標籤與播放清單（雲端同步）、智慧清單、改名、垃圾桶 7 天＋N100 永久刪除實體檔 | 倬要求：檔案變多後要好找、能分組、能真的刪檔；做完再做桌面小工具 |
 | v0.4.2 | 2026/10/26 | b719e0c | 登入後確認白名單（新 RPC `sf_whoami`），不在白名單顯示「這個信箱還沒開通」；寫入被 RLS 擋下時錯誤訊息改成白名單原因；分享結果改用畫面底部卡片（不用 Toast） | 倬用 hoonsorasus 信箱登入（不在 sf_member），貼網址顯示「請重新登入」誤導、分享在 ColorOS 上完全沒反應 |
 | v0.4.1 | 2026/10/26 | 7a05695 | 驗證碼接受 6～10 位數（AI_News 專案設定為 8 碼）；LAB 版在分享選單顯示「SoundFlow LAB 轉成音檔」 | 倬回報收到 8 碼驗證碼但 App 只能輸入 6 碼；正式版與 LAB 版並存時分享選單分不出來 |
@@ -76,15 +78,29 @@
 - [x] v0.5.0：刪除 YouTube 音檔 → 「復原」可救回；在垃圾桶按「立即永久刪除」→ 約 1 分鐘內消失，Supabase Storage 的 sf 檔案也不見
 - [x] v0.5.0：刪除 Podcast 時兩個選項都出現；選「只從 SoundFlow 移除」永久刪除後新知網站仍可播
 - [x] v0.5.0：用另一個已開通的信箱登入，標籤與清單同步出現（雲端同步）
+- [ ] v0.6.0：桌面長按 → 小工具 → SoundFlow（LAB）放上桌面；拉成 4×1、4×2、4×3 版面會切換
+- [ ] v0.6.0：播放／暫停、上一首、下一首、倒轉 15、快轉 30 都有反應，標題與進度條會更新
+- [ ] v0.6.0：倍速按鈕循環 1×→1.2×→1.3×→1.5×→2×；循環按鈕「關→清單循環→單曲循環」
+- [ ] v0.6.0：「換清單」跳出小視窗，選一份清單後直接從頭播放（不打開 App）
+- [ ] v0.6.0：4×3 的「接下來」點一集會直接跳過去
+- [ ] v0.6.0：把 App 從最近使用滑掉、甚至重開機後，按小工具的播放能從上次的清單與位置接續
+- [ ] v0.6.0：App 裡換佈景主題，小工具顏色跟著換
 
 ## 下一步
 
-1. v0.6.0 桌面小工具（進行中）。v0.5.0 已於 2026-10-27 實機通過並打 tag；v0.3.0／v0.4.0 的個別項目倬未逐項回報，以 v0.5.0 整體通過為準（倬 2026-10-26：清單管理完成後就做小工具）。v0.4.0 YouTube 分享 2026-10-26 倬實測轉檔成功。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
+1. 倬實機確認 v0.6.0 桌面小工具 → 打 tag。v0.5.0 已於 2026-10-26 實機通過並打 tag；v0.3.0／v0.4.0 的個別項目倬未逐項回報，以 v0.5.0 整體通過為準（倬 2026-10-26：清單管理完成後就做小工具）。v0.4.0 YouTube 分享 2026-10-26 倬實測轉檔成功。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
 3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
 4. SOP 第 5 步接下來（2026-10-26 再調整）：v0.6.0 桌面小工具 → v0.6.x 待播佇列、搜尋 →  清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-10-26（第 5 段）／電腦 A
+- 完成：v0.5.0 實機通過並打 tag。v0.6.0 桌面小工具（見任務清單）。JVM 測試 43 項通過（新增 WidgetLogicTest 4 項：倍速循環、版面判斷、狀態與快照 JSON）
+- 決定＋原因：一個可調整大小的小工具＋Responsive 版面，而不是三個小工具（使用者拉大拉小就好，維護一份）；小工具狀態由播放服務推送到 Glance 的 PreferencesGlanceStateDefinition，同時存 widget_state.json 給新放上的小工具用；按鈕走 PlayerConnection（ActionCallback 在 App process 執行），播放器空的時從 last_queue.json 接續（F26）；同一份快照也給 MediaSession.onPlaybackResumption；進度條只在事件與播放中每 30 秒刷新（小工具更新很耗電）
+- 放棄＋原因：每秒更新進度條（耗電、Glance 也不建議）；三個分開的小工具（重複維護）；小工具透明度設定（F27 的一部分，先固定 95%）
+- 未完成：實機驗證；小工具在挑選清單裡的預覽圖（目前用 Glance 預設的載入畫面）
+- 環境注意：Glance 小工具的圖示是 res/drawable 的 ic_w_*.xml（Glance 不能直接用 Compose 的 ImageVector），改 SfIcons 時記得一起改
 
 ### 2026-10-26（第 4 段）／電腦 A
 - 完成：倬實測 YouTube 轉檔成功；v0.5.0 清單管理（見任務清單）。新增 `data/Library.kt`（Label、Playlist、ViewMode、SortSpec、ListFilter、LibraryLogic）、`data/LibraryRepository.kt`、`ui/LibraryUi.kt`（標籤、清單、刪除、改名、單集選單）、`ui/PlaylistsScreen.kt`、`ui/ManageScreens.kt`（垃圾桶、標籤管理）；TracksScreen 重寫；SfColors 加 `SfLabelColors`（8 色）。JVM 測試 39 項、worker 測試 7 項通過；語音動作 track_delete 說明改 7 天、加選填參數 delete_source（相容檢查通過），語音總控說明書同步

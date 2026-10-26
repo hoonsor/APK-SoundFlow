@@ -15,7 +15,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.guava.await
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import tw.hoonsor.soundflow.BuildConfig
@@ -98,12 +100,12 @@ class PlayerConnection(
         }
         val upNext = Queue.upNext(count, idx, 3, repeat == Repeat.ALL && !c.shuffleModeEnabled).map { i ->
             val m = c.getMediaItemAt(i).mediaMetadata
-            UpNext(m.title?.toString().orEmpty(), m.extras?.getString(EXTRA_CHANNEL), m.durationMs ?: 0)
+            UpNext(m.title?.toString().orEmpty(), m.extras?.getString(MediaItems.EXTRA_CHANNEL), m.durationMs ?: 0)
         }
         _state.value = PlayerUi(
             currentId = item?.mediaId,
             title = item?.mediaMetadata?.title?.toString().orEmpty(),
-            channel = item?.mediaMetadata?.extras?.getString(EXTRA_CHANNEL),
+            channel = item?.mediaMetadata?.extras?.getString(MediaItems.EXTRA_CHANNEL),
             kind = item?.mediaMetadata?.extras?.getString(PlaybackService.EXTRA_KIND)?.let { k -> TrackKind.entries.firstOrNull { it.key == k } },
             isPlaying = c.isPlaying,
             buffering = c.playbackState == Player.STATE_BUFFERING,
@@ -122,28 +124,62 @@ class PlayerConnection(
         )
     }
 
-    /** 播放一個清單，從 startIndex 那集開始；會接續上次的進度 */
-    fun playList(tracks: List<Track>, startIndex: Int) = scope.launch {
-        val playable = tracks.mapNotNull { t -> SfUrls.audio(BuildConfig.SUPABASE_URL, t)?.let { t to it } }
+    /**
+     * 播放一個清單，從 startIndex 那集開始；會接續上次的進度。
+     * source 是清單名稱（Podcast、YouTube、清單名），小工具會顯示；同時存成快照，重開機後小工具能接續（F26）
+     */
+    fun playList(tracks: List<Track>, startIndex: Int, source: String = "") = scope.launch { startList(tracks, startIndex, source, null) }
+
+    private suspend fun startList(tracks: List<Track>, startIndex: Int, source: String, positionMs: Long?) {
+        val playable = tracks.mapNotNull { t -> MediaItems.of(t)?.let { t to it } }
         if (playable.isEmpty()) {
             _state.value = _state.value.copy(error = "這些音檔還不能播放（封存到 Drive 的要等之後的版本）")
-            return@launch
+            return
         }
         val wanted = tracks.getOrNull(startIndex)?.id
         val start = playable.indexOfFirst { it.first.id == wanted }.coerceAtLeast(0)
+        val pos = positionMs ?: ProgressRules.resumePosition(progress.get(playable[start].first.id))
+        val label = source.ifBlank { if (playable[start].first.kind == TrackKind.PODCAST) "Podcast" else "YouTube" }
+        withContext(Dispatchers.IO) { QueueSnapshot.save(context, QueueSnapshot(label, playable.map { it.first }, start, pos)) }
         val c = controller()
-        c.setMediaItems(playable.map { (t, url) -> mediaItem(t, url) }, start, ProgressRules.resumePosition(progress.get(playable[start].first.id)))
+        c.setMediaItems(playable.map { it.second }, start, pos)
         c.prepare()
         c.play()
     }
 
-    /** 點到正在播的那集：切換播放／暫停；點到別集：從那集開始播整個清單 */
-    fun playOrToggle(tracks: List<Track>, index: Int) {
-        val id = tracks.getOrNull(index)?.id
-        if (id != null && id == _state.value.currentId) togglePlay() else playList(tracks, index)
+    /** 播放器是空的（App 剛啟動、手機重開機）時，從快照接續上次的清單與位置 */
+    private suspend fun resumeFromSnapshot(): Boolean {
+        val snap = withContext(Dispatchers.IO) { QueueSnapshot.load(context) } ?: return false
+        startList(snap.tracks, snap.index, snap.source, snap.positionMs)
+        return true
     }
 
-    fun togglePlay() = withController { if (it.isPlaying) it.pause() else { if (it.playbackState == Player.STATE_ENDED) it.seekTo(0); it.play() } }
+    /** 點到正在播的那集：切換播放／暫停；點到別集：從那集開始播整個清單 */
+    fun playOrToggle(tracks: List<Track>, index: Int, source: String = "") {
+        val id = tracks.getOrNull(index)?.id
+        if (id != null && id == _state.value.currentId) togglePlay() else playList(tracks, index, source)
+    }
+
+    fun togglePlay() = scope.launch { runCatching { togglePlayNow() } }
+
+    /** 小工具的動作要等指令送出才結束，所以提供 suspend 版本 */
+    suspend fun togglePlayNow() {
+        val c = controller()
+        when {
+            c.mediaItemCount == 0 -> resumeFromSnapshot()
+            c.isPlaying -> c.pause()
+            else -> { if (c.playbackState == Player.STATE_ENDED) c.seekTo(0); c.play() }
+        }
+        refresh()
+    }
+
+    /** 小工具：在播放器有內容時執行指令；空的就先從快照接續（不自動播放的指令會被略過） */
+    suspend fun exec(block: (MediaController) -> Unit) {
+        val c = controller()
+        if (c.mediaItemCount == 0 && !resumeFromSnapshot()) return
+        block(c)
+        refresh()
+    }
     fun seekBack() = withController { it.seekBack() }
     fun seekForward() = withController { it.seekForward() }
     fun next() = withController { if (it.hasNextMediaItem()) it.seekToNextMediaItem() }
@@ -160,11 +196,11 @@ class PlayerConnection(
     fun toggleShuffle() = withController { it.shuffleModeEnabled = !it.shuffleModeEnabled }
 
     /** 播放整份清單；shuffle＝隨機播放（播放清單頁的「隨機播放」按鈕） */
-    fun playAll(tracks: List<Track>, shuffle: Boolean) {
+    fun playAll(tracks: List<Track>, shuffle: Boolean, source: String = "") {
         if (tracks.isEmpty()) return
         val start = if (shuffle) tracks.indices.random() else 0
         withController { it.shuffleModeEnabled = shuffle }
-        playList(tracks, start)
+        playList(tracks, start, source)
     }
     fun setSleep(minutes: Int, endOfTrack: Boolean = false) = withController {
         it.sendCustomCommand(SessionCommand(PlaybackService.CMD_SLEEP, Bundle.EMPTY), Bundle().apply {
@@ -180,30 +216,7 @@ class PlayerConnection(
         scope.launch { runCatching { block(controller()); refresh() } }
     }
 
-    private fun mediaItem(t: Track, url: String): MediaItem {
-        val style = SourceStyle.of(t.channel)
-        return MediaItem.Builder()
-            .setMediaId(t.id)
-            .setUri(url)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(t.title)
-                    .setArtist(if (t.kind == TrackKind.PODCAST) "新知雷達 · ${style.label}" else style.label)
-                    .setAlbumTitle(if (t.kind == TrackKind.PODCAST) "Podcast" else "YouTube")
-                    .setDurationMs(t.durationSec?.let { it * 1000L })
-                    .setIsPlayable(true)
-                    .setExtras(Bundle().apply {
-                        putString(PlaybackService.EXTRA_KIND, t.kind.key)
-                        putString(EXTRA_CHANNEL, t.channel)
-                    })
-                    .build(),
-            )
-            .build()
-    }
-
     companion object {
-        private const val EXTRA_CHANNEL = "sf.channel"
-
         fun playbackErrorText(e: PlaybackException): String = when (e.errorCode) {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "網路斷了，連上後按播放繼續"

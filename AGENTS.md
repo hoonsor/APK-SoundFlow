@@ -59,10 +59,13 @@ app/src/main/java/tw/hoonsor/
    │  ├─ SecureBox.kt             Keystore AES-GCM，加密登入權杖
    │  ├─ Models.kt                Track、Session、SfJson（解析）、SfFormat（顯示格式）、SourceStyle（封面色）
    │  └─ supabase/SupabaseClient.kt  OkHttp 直接呼叫 GoTrue／PostgREST，錯誤轉中文（SupabaseErrors）
+   ├─ widget/SoundFlowWidget.kt   桌面小工具（Glance）：三種版面、按鈕 ActionCallback、push() 推送狀態
+   ├─ widget/WidgetPickerActivity.kt  小工具「換清單」小視窗（只用手機快取）
    ├─ share/ShareActivity.kt      接收「分享 → SoundFlow 轉成音檔」：沒有畫面，送出後立刻關閉，結果用 Toast
    ├─ player/
    │  ├─ PlaybackService.kt       Media3 MediaSessionService＋ExoPlayer；自訂指令：睡眠計時、跳過靜音（狀態放 session extras）
-   │  ├─ PlayerConnection.kt      App 端唯一的播放控制入口（MediaController），輸出 PlayerUi
+   │  ├─ PlayerConnection.kt      App 端唯一的播放控制入口（MediaController），輸出 PlayerUi；播放器空的時從快照接續
+   │  ├─ QueueSnapshot.kt         MediaItems（共用建構）、QueueSnapshot（last_queue.json）、WidgetState（widget_state.json）、WidgetLayout
    │  └─ PlaybackLogic.kt         純邏輯：Speed、Repeat、ProgressRules、Queue、TimeText（PlaybackLogicTest）
    └─ ui/
       ├─ MainActivity.kt、SoundFlowApp.kt   底部四分頁外框（音檔／清單／待播／設定）、設定頁
@@ -116,6 +119,8 @@ worker/                          N100 轉檔服務（Python 標準庫＋yt-dlp�
 - Supabase 免費方案單檔 50 MB：worker 依長度降位元率，超過 3 小時拒絕
 - `.gitattributes` 讓 .sh／.service／.timer／.py 一律 LF；Windows CRLF 的 shell 腳本在 N100 會跑不起來
 - ShareActivity 的送出放在 `Graph.appScope`（使用者提早關卡片也照樣送出）；結果用畫面底部卡片顯示，**不要用 Toast**：ColorOS 不顯示背景 App 的 Toast（v0.4.0 實測分享後完全沒反應）
+- 小工具：圖示必須是 `res/drawable/ic_w_*.xml`（Glance 不能用 Compose ImageVector）；狀態只能由播放服務 `SoundFlowWidget.push()` 推送（Glance 的 provideContent 不會自己去讀檔案）；進度條不要每秒更新（耗電）
+- MediaItem 一律用 `MediaItems.of(track)` 建立（App 端、播放服務、系統接續播放共用），避免 extras 不一致
 - **永久刪除只由 N100 做**：App 只設 `deleted_at`／`delete_source`／`purge_requested_at`；worker 每分鐘刪實體檔後設 `purged_at`＋`hidden`，**不刪 sf_track 列**（刪了 nlm_job 觸發器會把 Podcast 加回來）
 - 標籤顏色只存代號（`sf_label.color`），顏色值在 `SfLabelColors`；新增顏色要過 ThemeTest 的對比度檢查
 - 同一集貼兩個標籤會在分組模式出現兩次：LazyGrid 的 key 要加組別（`"$groupKey/${id}"`），否則會因重複 key 當機

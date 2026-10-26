@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- app_name、share_label 依正式版／LAB 版不同，放在 app/build.gradle.kts 的 resValue -->
+    <string name="widget_description">播放／暫停、切歌、倍速、循環、換清單</string>
+</resources>

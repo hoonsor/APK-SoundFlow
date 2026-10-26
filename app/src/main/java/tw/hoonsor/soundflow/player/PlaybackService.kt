@@ -14,6 +14,8 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import tw.hoonsor.soundflow.widget.SoundFlowWidget
 import tw.hoonsor.soundflow.BuildConfig
 import tw.hoonsor.soundflow.data.SfUrls
 import androidx.media3.session.MediaSession
@@ -98,6 +100,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     private val listener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) = scheduleWidget()
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) startSaver() else { saver?.cancel(); saveProgress() }
         }
@@ -154,6 +158,47 @@ class PlaybackService : MediaSessionService() {
         val pos = player.currentPosition
         val dur = player.duration.takeIf { it != C.TIME_UNSET } ?: return
         scope.launch { Graph.progress.update(id, pos, dur) }
+        scope.launch(Dispatchers.IO) { QueueSnapshot.updatePosition(applicationContext, id, pos) }
+        // 進度條每 30 秒刷新一次就好：小工具更新很耗電，播放／切歌等事件另外會立即刷新
+        if (System.currentTimeMillis() - lastWidgetTick > 30_000) { lastWidgetTick = System.currentTimeMillis(); scheduleWidget() }
+    }
+    private var lastWidgetTick = 0L
+
+    // ── 桌面小工具（F24–F27）：事件發生時（合併 0.5 秒內的多次事件）寫狀態檔並刷新小工具 ──
+    private var widgetJob: Job? = null
+
+    private fun scheduleWidget() {
+        widgetJob?.cancel()
+        widgetJob = scope.launch {
+            delay(500)
+            val item = player.currentMediaItem
+            val m = item?.mediaMetadata
+            val repeat = when (player.repeatMode) {
+                Player.REPEAT_MODE_ONE -> Repeat.ONE
+                Player.REPEAT_MODE_ALL -> Repeat.ALL
+                else -> Repeat.OFF
+            }
+            val nextIdx = Queue.upNext(player.mediaItemCount, player.currentMediaItemIndex, 3, repeat == Repeat.ALL && !player.shuffleModeEnabled)
+            val next = nextIdx.map { player.getMediaItemAt(it).mediaMetadata.title?.toString().orEmpty() }
+            val state = WidgetState(
+                title = m?.title?.toString().orEmpty(),
+                channel = m?.extras?.getString(MediaItems.EXTRA_CHANNEL),
+                kind = m?.extras?.getString(EXTRA_KIND),
+                source = withContext(Dispatchers.IO) { QueueSnapshot.load(applicationContext)?.source }.orEmpty(),
+                playing = player.isPlaying,
+                positionMs = player.currentPosition.coerceAtLeast(0),
+                durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: (m?.durationMs ?: 0),
+                speed = player.playbackParameters.speed,
+                repeat = repeat,
+                upNext = next,
+                upNextIndex = nextIdx,
+                updatedAt = System.currentTimeMillis(),
+            )
+            // 播放器被清空（例如停止）時保留上一次的內容，小工具才看得到「上次聽到哪」
+            if (state.hasTrack || !WidgetState.load(applicationContext).hasTrack) {
+                runCatching { SoundFlowWidget.push(applicationContext, state) }
+            }
+        }
     }
 
     // ── 睡眠計時（F16）：時間到前 10 秒音量淡出再暫停 ─────────────────
@@ -201,6 +246,17 @@ class PlaybackService : MediaSessionService() {
         }
 
         override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) = publishExtras()
+
+        /** Android 13+ 系統的「繼續播放」卡片、藍牙耳機按播放時：從快照接續上次的清單 */
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession, controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val snap = QueueSnapshot.load(applicationContext)
+            val items = snap?.tracks?.mapNotNull { MediaItems.of(it) }.orEmpty()
+            if (snap == null || items.isEmpty()) return Futures.immediateFailedFuture(UnsupportedOperationException("沒有可接續的清單"))
+            val idx = snap.tracks.getOrNull(snap.index)?.let { t -> items.indexOfFirst { it.mediaId == t.id } }?.takeIf { it >= 0 } ?: 0
+            return Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(items, idx, snap.positionMs))
+        }
 
         override fun onCustomCommand(
             session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle,

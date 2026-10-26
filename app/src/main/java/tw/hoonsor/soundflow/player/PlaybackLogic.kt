@@ -12,6 +12,10 @@ object Speed {
     /** 夾在 0.5～3.0，並對齊 0.05 */
     fun clamp(v: Float): Float = ((v.coerceIn(MIN, MAX) * 20).roundToInt() / 20f)
 
+    /** 小工具倍速按鈕：點一下換下一個（1.0 → 1.2 → 1.3 → 1.5 → 2.0 → 1.0）；不在清單上的值跳到比它大的下一個 */
+    val WIDGET_CYCLE = listOf(1.0f, 1.2f, 1.3f, 1.5f, 2.0f)
+    fun nextWidget(v: Float): Float = WIDGET_CYCLE.firstOrNull { it > clamp(v) + 0.001f } ?: WIDGET_CYCLE.first()
+
     fun label(v: Float): String {
         val s = "%.2f".format(clamp(v)).trimEnd('0').trimEnd('.')
         return "${s}×"

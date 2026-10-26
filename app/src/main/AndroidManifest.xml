@@ -51,6 +51,25 @@
             </intent-filter>
         </activity>
 
+        <!-- 桌面小工具（Glance）與它的「換清單」小視窗 -->
+        <receiver
+            android:name=".widget.SoundFlowWidgetReceiver"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/soundflow_widget_info" />
+        </receiver>
+        <activity
+            android:name=".widget.WidgetPickerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.SoundFlow.Invisible" />
+
         <!-- Media3 播放服務：通知列、鎖定畫面、藍牙按鍵；之後小工具與語音動作也連這裡 -->
         <service
             android:name=".player.PlaybackService"

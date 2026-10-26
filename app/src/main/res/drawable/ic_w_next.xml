@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小工具圖示（白色，Glance 再依佈景主題上色）；路徑與 SfIcons 相同 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M5,6.2v11.6a0.8,0.8 0 0 0 1.2,0.7l8.6,-5.8a0.8,0.8 0 0 0 0,-1.4L6.2,5.5A0.8,0.8 0 0 0 5,6.2zM17.5,5.5h1.6a1,1 0 0 1 1,1v11a1,1 0 0 1 -1,1h-1.6a1,1 0 0 1 -1,-1v-11a1,1 0 0 1 1,-1z" />
+</vector>

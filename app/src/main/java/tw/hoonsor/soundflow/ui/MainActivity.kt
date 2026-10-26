@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import tw.hoonsor.soundflow.Graph
 import tw.hoonsor.soundflow.ui.theme.SfThemeId
 import tw.hoonsor.soundflow.ui.theme.SoundFlowTheme
+import tw.hoonsor.soundflow.widget.SoundFlowWidget
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,7 +23,13 @@ class MainActivity : ComponentActivity() {
             SoundFlowTheme(theme) {
                 SoundFlowApp(
                     theme = theme,
-                    onThemeChange = { id -> scope.launch { Graph.settings.setTheme(id) } },
+                    onThemeChange = { id ->
+                        scope.launch {
+                            Graph.settings.setTheme(id)
+                            // 桌面小工具跟著換色（F27）
+                            runCatching { SoundFlowWidget.push(applicationContext) }
+                        }
+                    },
                 )
             }
         }
