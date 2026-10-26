@@ -38,7 +38,7 @@ import tw.hoonsor.soundflow.data.SfJson
 import tw.hoonsor.soundflow.ui.theme.Sf
 import tw.hoonsor.soundflow.ui.theme.SfType
 
-/** 信箱驗證碼登入：輸入信箱 → 寄 6 碼 → 輸入驗證碼。只有白名單信箱能讀到資料 */
+/** 信箱驗證碼登入：輸入信箱 → 寄驗證碼（長度依 Supabase 設定，目前 8 碼）→ 輸入。只有白名單信箱能讀到資料 */
 @Composable
 fun LoginCard(modifier: Modifier = Modifier) {
     val c = Sf.colors
@@ -66,7 +66,7 @@ fun LoginCard(modifier: Modifier = Modifier) {
     }
 
     fun verify() {
-        if (!SfJson.isValidOtp(code)) { error = "驗證碼是 6 位數字"; return }
+        if (!SfJson.isValidOtp(code)) { error = "請輸入信裡的完整驗證碼（6～10 位數字）"; return }
         busy = true; error = null
         scope.launch {
             runCatching { Graph.auth.verify(email, code) }.onFailure { error = it.message }
@@ -86,7 +86,7 @@ fun LoginCard(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("登入 SoundFlow", color = c.text, fontSize = 17.sp, style = SfType.rowTitle)
-        Text("用信箱收 6 位數驗證碼登入。只有加進白名單的信箱看得到新知雷達的 Podcast。", color = c.muted, style = SfType.body)
+        Text("用信箱收驗證碼登入。只有加進白名單的信箱看得到新知雷達的 Podcast。", color = c.muted, style = SfType.body)
         OutlinedTextField(
             value = email, onValueChange = { email = it; error = null }, singleLine = true, enabled = !busy,
             label = { Text("信箱") }, colors = fieldColors, shape = RoundedCornerShape(12.dp),
@@ -95,12 +95,12 @@ fun LoginCard(modifier: Modifier = Modifier) {
         )
         if (codeSent) {
             OutlinedTextField(
-                value = code, onValueChange = { v -> code = v.filter { it.isDigit() }.take(6); error = null }, singleLine = true, enabled = !busy,
-                label = { Text("驗證碼（6 位數）") }, colors = fieldColors, shape = RoundedCornerShape(12.dp),
+                value = code, onValueChange = { v -> code = v.filter { it.isDigit() }.take(SfJson.OTP_MAX); error = null }, singleLine = true, enabled = !busy,
+                label = { Text("驗證碼") }, colors = fieldColors, shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text("驗證碼已寄到 ${SfJson.normalizeEmail(email)}，沒收到請看垃圾郵件匣。", color = c.muted, style = SfType.body)
+            Text("驗證碼已寄到 ${SfJson.normalizeEmail(email)}（信件標題可能寫記帳網站，三個服務共用同一個登入系統）。沒收到請看垃圾郵件匣。", color = c.muted, style = SfType.body)
         }
         error?.let { Text(it, color = c.danger, style = SfType.body) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -5,7 +5,7 @@ plugins {
 }
 
 // SemVer → versionCode（1.2.3 → 10203）。發新版：改這一行後 push vX.Y.Z tag（CI 會檢查一致）
-val appVersion = "0.4.0"
+val appVersion = "0.4.1"
 val appVersionCode = appVersion.split(".").map { it.toInt() }.let { (a, b, c) -> a * 10000 + b * 100 + c }
 
 // 共用簽章 hoonsor-release.jks：由 CI 從 Secrets 解出；本機或沒有 Secrets 時退回 debug 簽章
@@ -49,12 +49,15 @@ android {
         create("prod") {
             dimension = "channel"
             resValue("string", "app_name", "SoundFlow")
+            resValue("string", "share_label", "SoundFlow 轉成音檔")
         }
         create("lab") {
             dimension = "channel"
             applicationIdSuffix = ".lab"
             versionNameSuffix = "-lab"
             resValue("string", "app_name", "SoundFlow LAB")
+            // 分享選單要分得出正式版與 LAB 版
+            resValue("string", "share_label", "SoundFlow LAB 轉成音檔")
         }
     }
 

@@ -36,7 +36,8 @@
 
 | 版本 | 日期 | commit | 變更 | 為什麼 |
 |---|---|---|---|---|
-| v0.4.0 | 2026/10/26 | （本次） | YouTube 分享進 SoundFlow、N100 轉檔服務（yt-dlp＋ffmpeg 轉 Opus）、YouTube 分頁轉檔進度與重試、私人音檔空間 | 倬要求提前：先能把 YouTube 影片變成音檔，再測播放與小工具 |
+| v0.4.1 | 2026/10/26 | （本次） | 驗證碼接受 6～10 位數（AI_News 專案設定為 8 碼）；LAB 版在分享選單顯示「SoundFlow LAB 轉成音檔」 | 倬回報收到 8 碼驗證碼但 App 只能輸入 6 碼；正式版與 LAB 版並存時分享選單分不出來 |
+| v0.4.0 | 2026/10/26 | 09ed7ab | YouTube 分享進 SoundFlow、N100 轉檔服務（yt-dlp＋ffmpeg 轉 Opus）、YouTube 分頁轉檔進度與重試、私人音檔空間 | 倬要求提前：先能把 YouTube 影片變成音檔，再測播放與小工具 |
 | v0.3.0 | 2026/10/25 | 663edbe | Media3 背景播放（通知列、鎖定畫面、藍牙）、迷你播放列、全螢幕播放、倍速依分頁記住、循環／隨機、睡眠計時（淡出）、跳過靜音、本機收聽進度與已聽完標記 | 讓 App 真的能聽；背景播放是桌面小工具（v0.4.0）與語音動作的基礎 |
 | v0.2.0 | 2026/10/25 | 404d067 | 信箱驗證碼登入、Podcast 列表（兩欄網格、下拉重新整理、離線快取）、設定頁帳號與測試連線；Supabase 新增 sf_track 與 nlm_job 同步觸發器 | 先讓新知雷達產生的 Podcast 出現在 App 裡，播放（v0.3.0）才有東西可播 |
 | v0.1.0 | 2026/10/23 | 7cdaf63 | 骨架：正式版＋LAB 版、3 種佈景主題可切換、底部四分頁、Agent API describe、CI | SOP 第 4 步；先把編譯、簽章、發布管線跑通再做功能 |
@@ -71,6 +72,11 @@
 4. SOP 第 5 步接下來（2026-10-26 調整順序）：v0.5.0 桌面小工具 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-10-26（第 2 段）／電腦 A
+- 完成：v0.4.1。倬回報驗證碼是 8 碼、App 只能輸入 6 碼 → 改成接受 6～10 碼；LAB 版分享名稱改成「SoundFlow LAB 轉成音檔」（`share_label` 改由 flavor 的 resValue 提供，原 strings.xml 移到 `_trash/`）
+- 原因：驗證碼長度是 Supabase 專案層級設定，AI_News 被 43 號記帳網站設成 8 碼；v0.2.0 實機測試時沒踩到（推測當時長度還是 6，或倬沿用已登入狀態，原因待確認）
+- 未決定：驗證碼信件範本目前是記帳網站的文字，是三個服務共用；要改成中性文字（例如「倬的服務登入驗證碼」）需要在 Supabase 後台修改，且會影響記帳網站，等倬決定
 
 ### 2026-10-26／電腦 A
 - 完成：倬回報 YouTube 分享選單沒有 SoundFlow（原排 v0.5.0，尚未實作），要求提前 → v0.4.0。Supabase 套用 migration `soundflow_youtube_jobs`；App 新增 `share/ShareActivity.kt`、`data/YouTube.kt`（網址解析、工作 JSON、N100 狀態文字）、`data/JobRepository.kt`、`ui/JobsPanel.kt`，PlaybackService 改用 ResolvingDataSource 對私人 bucket 帶權杖；`worker/` N100 服務程式。JVM 測試 29 項、worker 測試 5 項通過；release 編譯通過；未登入時新增 yt_job 401、私人 bucket 讀不到（400）

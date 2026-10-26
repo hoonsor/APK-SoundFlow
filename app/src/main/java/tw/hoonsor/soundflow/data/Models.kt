@@ -87,7 +87,9 @@ object SfJson {
 
     fun normalizeEmail(s: String) = s.trim().lowercase()
     fun isValidEmail(s: String) = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(normalizeEmail(s))
-    fun isValidOtp(s: String) = Regex("^\\d{6}$").matches(s.trim())
+    /** 驗證碼長度是 Supabase 專案層級的設定（AI_News 與記帳網站共用，目前 8 碼），App 不寫死：接受 6～10 位數 */
+    const val OTP_MAX = 10
+    fun isValidOtp(s: String) = Regex("^\\d{6,$OTP_MAX}$").matches(s.trim())
 }
 
 object SfUrls {

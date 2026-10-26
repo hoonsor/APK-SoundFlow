@@ -57,7 +57,10 @@ class DataLogicTest {
         assertFalse(SfJson.isValidEmail("me@example"))
         assertEquals("me@example.com", SfJson.normalizeEmail(" Me@Example.com "))
         assertTrue(SfJson.isValidOtp("012345"))
+        assertTrue(SfJson.isValidOtp("01234567"))     // AI_News 專案目前是 8 碼
+        assertTrue(SfJson.isValidOtp("0123456789"))
         assertFalse(SfJson.isValidOtp("12345"))
+        assertFalse(SfJson.isValidOtp("01234567890"))
         assertFalse(SfJson.isValidOtp("12a456"))
     }
 

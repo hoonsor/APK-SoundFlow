@@ -101,6 +101,7 @@ worker/                          N100 轉檔服務（Python 標準庫＋yt-dlp�
 - 下載 YouTube 音軌違反 YouTube 服務條款：僅限倬個人收聽、不公開分享
 - **repo 是公開的**：信箱、權杖、service role key 都不能寫進任何檔案（含 migration）；publishable key 可以（本來就公開）
 - PostgREST 的時間格式是 `+00:00` 偏移，要用 `OffsetDateTime.parse` 再轉 Instant（`SfJson.normalizeTimestamp`）
+- **驗證碼長度與信件範本是 Supabase 專案層級設定**，AI_News 與 43 號記帳網站、27 號新知雷達共用：目前 8 碼、範本是記帳網站的文字。App 不可寫死長度（`SfJson.OTP_MAX`，接受 6～10 碼）；改範本會影響其他專案，要先問倬（v0.4.1 修正）
 - GoTrue 的 refresh token 會輪替：每次刷新都要存新的；被拒絕（4xx）才登出，網路錯誤保留登入
 - 白名單外的帳號登入後讀 sf_track 會拿到空陣列（不是錯誤），畫面要提示「確認信箱在白名單」
 - 畫面不要直接碰 Media3：一律經過 `Graph.player`（PlayerConnection）；之後的小工具、語音動作也連同一個 MediaSession
