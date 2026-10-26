@@ -76,7 +76,7 @@
 
 ### 2026-10-26（第 3 段）／電腦 A
 - 完成：v0.4.2。倬用 `hoonsorasus@gmail.com` 登入（Auth 使用者有，但不在 sf_member）→ 讀不到 N100 心跳（顯示「還沒上線過」）、貼網址被 RLS 擋下卻顯示「請重新登入」、分享的 Toast 在 ColorOS 上沒出現。新增 migration `soundflow_whoami`（`public.sf_whoami()`，只回自己的信箱與是否成員；未登入呼叫 401）；App 登入後確認白名單、顯示開通狀態；錯誤訊息修正；ShareActivity 改 Compose 底部卡片。JVM 測試 30 項通過
-- 未完成：把 `hoonsorasus@gmail.com` 加進 sf_member——我嘗試時被自動權限檢查擋下（授予存取權需要倬明確同意），待倬同意或自己在 Table Editor 新增
+- 白名單：倬同日明確同意後，`hoonsorasus@gmail.com` 已加進 sf_member（目前 2 位成員）；第一次嘗試時被自動權限檢查擋下，因為授予存取權需要倬明確同意
 
 ### 2026-10-26（第 2 段）／電腦 A
 - 完成：v0.4.1。倬回報驗證碼是 8 碼、App 只能輸入 6 碼 → 改成接受 6～10 碼；LAB 版分享名稱改成「SoundFlow LAB 轉成音檔」（`share_label` 改由 flavor 的 resValue 提供，原 strings.xml 移到 `_trash/`）
