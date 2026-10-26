@@ -460,7 +460,7 @@
     {
       "name": "track_delete",
       "title": "刪除音檔",
-      "description": "把一集移到垃圾桶（30 天內可用 track_restore 還原）；Podcast 只從 SoundFlow 隱藏，新知網站照常可播",
+      "description": "把一集移到垃圾桶（7 天內可用 track_restore 還原，之後連雲端音檔永久刪除）；Podcast 預設只從 SoundFlow 移除，delete_source=true 才連新知雷達的音檔一起刪",
       "risk": "destructive",
       "params": {
         "type": "object",
@@ -476,6 +476,11 @@
           "now_playing": {
             "type": "boolean",
             "default": false
+          },
+          "delete_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "只對 Podcast 有效：true＝永久刪除時連新知雷達的音檔一起刪（網站上也聽不到）"
           }
         }
       },

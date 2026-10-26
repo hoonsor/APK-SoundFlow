@@ -82,3 +82,28 @@ def track_row(meta: dict, video_id: str, path: str, size: int) -> dict:
         "storage_path": path,
         "video_id": video_id,
     }
+
+
+# ── 垃圾桶永久刪除（v0.5.0）────────────────────────────────────────
+TRASH_DAYS = 7
+
+
+def purge_due(row: dict, now_iso_text: str) -> bool:
+    """要不要永久刪除：使用者按了「立即永久刪除」，或進垃圾桶超過 7 天"""
+    from datetime import datetime, timedelta
+    if row.get("purged_at"):
+        return False
+    if row.get("purge_requested_at"):
+        return True
+    deleted = row.get("deleted_at")
+    if not deleted:
+        return False
+    now = datetime.fromisoformat(now_iso_text)
+    return datetime.fromisoformat(deleted) <= now - timedelta(days=TRASH_DAYS)
+
+
+def should_delete_file(row: dict) -> bool:
+    """YouTube 一律刪實體檔；Podcast 只有倬選了「連新知雷達的音檔一起刪」才刪"""
+    if row.get("tier") != "supabase" or not row.get("storage_bucket") or not row.get("storage_path"):
+        return False
+    return row.get("kind") == "youtube" or bool(row.get("delete_source"))

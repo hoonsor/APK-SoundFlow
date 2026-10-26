@@ -158,6 +158,14 @@ class PlayerConnection(
         }
     }
     fun toggleShuffle() = withController { it.shuffleModeEnabled = !it.shuffleModeEnabled }
+
+    /** 播放整份清單；shuffle＝隨機播放（播放清單頁的「隨機播放」按鈕） */
+    fun playAll(tracks: List<Track>, shuffle: Boolean) {
+        if (tracks.isEmpty()) return
+        val start = if (shuffle) tracks.indices.random() else 0
+        withController { it.shuffleModeEnabled = shuffle }
+        playList(tracks, start)
+    }
     fun setSleep(minutes: Int, endOfTrack: Boolean = false) = withController {
         it.sendCustomCommand(SessionCommand(PlaybackService.CMD_SLEEP, Bundle.EMPTY), Bundle().apply {
             putInt(PlaybackService.ARG_MINUTES, minutes); putBoolean(PlaybackService.ARG_END_OF_TRACK, endOfTrack)

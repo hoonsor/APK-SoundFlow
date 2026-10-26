@@ -54,6 +54,8 @@ app/src/main/java/tw/hoonsor/
    │  ├─ ProgressRepository.kt    收聽進度（progress.json），播放服務與畫面共用
    │  ├─ JobRepository.kt         YouTube 轉檔工作：送出、列出、重試、取消、離線暫存 pending_shares.json
    │  ├─ YouTube.kt               純邏輯：YouTubeLink（分享文字→影片 id）、JobJson、WorkerStatus
+   │  ├─ Library.kt               Label、Playlist、ViewMode、SortSpec、ListFilter、LibraryLogic（排序、篩選、分組、智慧清單）
+   │  ├─ LibraryRepository.kt     標籤與播放清單（雲端同步，先改畫面再送雲端；library.json 快取）
    │  ├─ SecureBox.kt             Keystore AES-GCM，加密登入權杖
    │  ├─ Models.kt                Track、Session、SfJson（解析）、SfFormat（顯示格式）、SourceStyle（封面色）
    │  └─ supabase/SupabaseClient.kt  OkHttp 直接呼叫 GoTrue／PostgREST，錯誤轉中文（SupabaseErrors）
@@ -67,6 +69,9 @@ app/src/main/java/tw/hoonsor/
       ├─ TracksScreen.kt、LoginCard.kt     音檔分頁（兩欄網格、下拉重新整理）、登入卡片
       ├─ PlayerViews.kt                   迷你播放列、全螢幕播放頁、倍速與睡眠計時面板
       ├─ JobsPanel.kt                     YouTube 分頁上方：N100 狀態、轉檔工作、貼上網址
+      ├─ LibraryUi.kt                     標籤選擇、加入清單、刪除確認、改名、單集「⋯」選單、Chip
+      ├─ PlaylistsScreen.kt               清單分頁：智慧清單、自訂清單、清單內頁
+      ├─ ManageScreens.kt                 垃圾桶、標籤管理（從設定頁進入）
 worker/                          N100 轉檔服務（Python 標準庫＋yt-dlp＋ffmpeg），部署與金鑰見 worker/README.md
       └─ theme/  SfColors.kt（HSL 色票＋對比度計算）、SfTheme.kt（Compose 主題）、SfIcons.kt（手繪線條圖示）
 ```
@@ -111,6 +116,9 @@ worker/                          N100 轉檔服務（Python 標準庫＋yt-dlp�
 - Supabase 免費方案單檔 50 MB：worker 依長度降位元率，超過 3 小時拒絕
 - `.gitattributes` 讓 .sh／.service／.timer／.py 一律 LF；Windows CRLF 的 shell 腳本在 N100 會跑不起來
 - ShareActivity 的送出放在 `Graph.appScope`（使用者提早關卡片也照樣送出）；結果用畫面底部卡片顯示，**不要用 Toast**：ColorOS 不顯示背景 App 的 Toast（v0.4.0 實測分享後完全沒反應）
+- **永久刪除只由 N100 做**：App 只設 `deleted_at`／`delete_source`／`purge_requested_at`；worker 每分鐘刪實體檔後設 `purged_at`＋`hidden`，**不刪 sf_track 列**（刪了 nlm_job 觸發器會把 Podcast 加回來）
+- 標籤顏色只存代號（`sf_label.color`），顏色值在 `SfLabelColors`；新增顏色要過 ThemeTest 的對比度檢查
+- 同一集貼兩個標籤會在分組模式出現兩次：LazyGrid 的 key 要加組別（`"$groupKey/${id}"`），否則會因重複 key 當機
 - **能登入 ≠ 能用 SoundFlow**：Auth Users 是登入帳號（三個服務共用），`sf_member` 才是 SoundFlow 白名單。白名單外的帳號讀到空陣列、寫入回 403（42501）；App 登入後呼叫 `rpc/sf_whoami` 判斷，顯示「這個信箱還沒開通」（v0.4.2）
 
 ## 倬的偏好

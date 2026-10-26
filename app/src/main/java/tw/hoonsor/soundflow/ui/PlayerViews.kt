@@ -193,7 +193,7 @@ fun FullPlayer(ui: PlayerUi, onClose: () -> Unit) {
             StateTile(if (ui.skipSilence) "開" else "關", "跳過靜音", active = ui.skipSilence, modifier = Modifier.weight(1f)) { Graph.player.setSkipSilence(!ui.skipSilence) }
         }
         Row(Modifier.padding(top = 8.dp)) {
-            Chip(if (ui.shuffle) "隨機播放：開" else "隨機播放：關", selected = ui.shuffle) { Graph.player.toggleShuffle() }
+            PlayerChip(if (ui.shuffle) "隨機播放：開" else "隨機播放：關", selected = ui.shuffle) { Graph.player.toggleShuffle() }
         }
 
         // 接下來
@@ -248,7 +248,7 @@ private fun StateTile(value: String, label: String, active: Boolean, modifier: M
 }
 
 @Composable
-private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun PlayerChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val c = Sf.colors
     val shape = RoundedCornerShape(10.dp)
     Box(
@@ -270,7 +270,7 @@ private fun SpeedSheet(current: Float) {
         }
         Text("會記住成這個分頁的預設倍速（Podcast、YouTube 各自一個）。", style = SfType.body, color = c.muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Speed.PRESETS.forEach { p -> Chip(Speed.label(p), selected = Speed.clamp(v) == p) { v = p; Graph.player.setSpeed(p) } }
+            Speed.PRESETS.forEach { p -> PlayerChip(Speed.label(p), selected = Speed.clamp(v) == p) { v = p; Graph.player.setSpeed(p) } }
         }
         Slider(
             value = v, valueRange = Speed.MIN..Speed.MAX, steps = ((Speed.MAX - Speed.MIN) / 0.05f).toInt() - 1,
@@ -289,8 +289,8 @@ private fun SleepSheet(ui: PlayerUi, onDone: () -> Unit) {
         Text("睡眠計時", style = SfType.rowTitle, color = c.text)
         Text("時間到前 10 秒音量會慢慢變小再暫停。", style = SfType.body, color = c.muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(15, 30, 45, 60, 90).forEach { m -> Chip("$m 分鐘", selected = false) { Graph.player.setSleep(m); onDone() } }
-            Chip("本集結束", selected = ui.sleepEndOfTrack) { Graph.player.setSleep(0, endOfTrack = true); onDone() }
+            listOf(15, 30, 45, 60, 90).forEach { m -> PlayerChip("$m 分鐘", selected = false) { Graph.player.setSleep(m); onDone() } }
+            PlayerChip("本集結束", selected = ui.sleepEndOfTrack) { Graph.player.setSleep(0, endOfTrack = true); onDone() }
         }
         if (ui.sleepEndsAt > 0 || ui.sleepEndOfTrack) {
             SfButton("取消睡眠計時", primary = false, onClick = { Graph.player.setSleep(0); onDone() }, modifier = Modifier.fillMaxWidth())

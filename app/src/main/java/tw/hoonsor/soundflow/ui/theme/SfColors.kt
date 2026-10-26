@@ -79,6 +79,31 @@ object SfSemantic {
     fun cover(hue: Float) = Hsl(hue, 30f, 30f)
 }
 
+/**
+ * 顏色標籤色票（F52）：雲端只存代號，顏色值只在這裡。三個佈景主題共用（都是深色底）。
+ * dot＝小圓點、text＝標籤文字、bg＝標籤底色（ThemeTest 檢查 text 對 bg 與各主題 surface 的對比度）
+ */
+data class LabelColor(val key: String, val name: String, val hue: Float) {
+    val dot get() = Hsl(hue, 60f, 62f)
+    val text get() = Hsl(hue, 70f, 78f)
+    val bg get() = Hsl(hue, 30f, 17f)
+}
+
+object SfLabelColors {
+    val all = listOf(
+        LabelColor("blue", "藍", 212f),
+        LabelColor("teal", "青", 172f),
+        LabelColor("green", "綠", 135f),
+        LabelColor("amber", "琥珀", 38f),
+        LabelColor("coral", "珊瑚", 12f),
+        LabelColor("pink", "粉", 330f),
+        LabelColor("violet", "紫", 268f),
+        LabelColor("slate", "灰", 215f),
+    )
+
+    fun of(key: String?): LabelColor = all.firstOrNull { it.key == key } ?: all.first()
+}
+
 object SfPalettes {
     val signal = SfPalette(
         bg = Hsl(215f, 22f, 7f), surface = Hsl(215f, 18f, 11f), surface2 = Hsl(232f, 24f, 16f), border = Hsl(215f, 14f, 20f),

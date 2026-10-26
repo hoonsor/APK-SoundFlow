@@ -58,5 +58,16 @@ object SfIcons {
     val Repeat = stroke("repeat", "M17,3.5L20.5,7 17,10.5", "M3.5,12V10a3,3 0 0 1 3,-3h14", "M7,20.5L3.5,17 7,13.5", "M20.5,12v2a3,3 0 0 1 -3,3h-14", width = 1.8f)
     val Shuffle = stroke("shuffle", "M3.5,7h3a5,5 0 0 1 4,2l3,4a5,5 0 0 0 4,2h3", "M17.5,12.5l3,2.5 -3,2.5",
         "M3.5,17h3a5,5 0 0 0 3.2,-1.2M14.3,8.2A5,5 0 0 1 17.5,7h3", "M17.5,4.5l3,2.5 -3,2.5", width = 1.8f)
+    val Tag = stroke("tag", "M3.5,12.6V4.5a1,1 0 0 1 1,-1h8.1a1,1 0 0 1 0.7,0.3l7.2,7.2a1,1 0 0 1 0,1.4l-8.1,8.1a1,1 0 0 1 -1.4,0L3.8,13.3a1,1 0 0 1 -0.3,-0.7z", "M8,8h0.01", width = 1.8f)
+    val Pencil = stroke("pencil", "M4,20h4L19,9l-4,-4L4,16z", "M13.5,6.5l4,4", width = 1.8f)
+    val Trash = stroke("trash", "M4.5,7h15M9.5,7V4.5h5V7M6.5,7l1,12.5h9l1,-12.5", width = 1.8f)
+    val ListRows = stroke("listRows", "M8,6h12M8,12h12M8,18h12", "M4,6h0.01M4,12h0.01M4,18h0.01", width = 2f)
+    val Sort = stroke("sort", "M7,4v16m0,0l-3,-3m3,3l3,-3", "M14,6h7M14,12h5M14,18h3", width = 1.9f)
+    val Layers = stroke("layers", "M12,4l8,4 -8,4 -8,-4z", "M4,12l8,4 8,-4", "M4,16l8,4 8,-4", width = 1.8f)
+    val Close = stroke("close", "M6,6l12,12M18,6L6,18", width = 2f)
+    val More = fill("more", "M12,3.8a1.7,1.7 0 1 1 0,3.4a1.7,1.7 0 1 1 0,-3.4z", "M12,10.3a1.7,1.7 0 1 1 0,3.4a1.7,1.7 0 1 1 0,-3.4z", "M12,16.8a1.7,1.7 0 1 1 0,3.4a1.7,1.7 0 1 1 0,-3.4z")
+    val ArrowUp = stroke("arrowUp", "M12,19V5M6,11l6,-6 6,6", width = 2f)
+    val ArrowDown = stroke("arrowDown", "M12,5v14M6,13l6,6 6,-6", width = 2f)
+    val Back = stroke("back", "M15,5l-7,7 7,7", width = 2f)
     val Moon = stroke("moon", "M19,14.5A7.5,7.5 0 0 1 9.5,5a7.5,7.5 0 1 0 9.5,9.5z", width = 1.8f)
 }

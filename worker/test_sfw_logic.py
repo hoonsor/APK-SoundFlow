@@ -43,6 +43,22 @@ class LogicTest(unittest.TestCase):
         self.assertEqual("youtube", row["kind"])
         self.assertTrue(re.match(r"https://www\.youtube\.com/watch\?v=", row["source_url"]))
 
+    def test_purge_due(self):
+        now = "2026-10-30T12:00:00+00:00"
+        self.assertTrue(L.purge_due({"deleted_at": "2026-10-23T11:00:00+00:00"}, now))   # 超過 7 天
+        self.assertFalse(L.purge_due({"deleted_at": "2026-10-25T12:00:00+00:00"}, now))  # 才 5 天
+        self.assertTrue(L.purge_due({"deleted_at": "2026-10-29T12:00:00+00:00", "purge_requested_at": "2026-10-29T13:00:00+00:00"}, now))
+        self.assertFalse(L.purge_due({"deleted_at": "2026-10-01T00:00:00+00:00", "purged_at": "2026-10-08T00:00:00+00:00"}, now))
+        self.assertFalse(L.purge_due({}, now))
+
+    def test_should_delete_file(self):
+        base = {"tier": "supabase", "storage_bucket": "nlm", "storage_path": "a.m4a"}
+        self.assertTrue(L.should_delete_file({**base, "kind": "youtube", "storage_bucket": "sf"}))
+        self.assertFalse(L.should_delete_file({**base, "kind": "podcast", "delete_source": False}))
+        self.assertTrue(L.should_delete_file({**base, "kind": "podcast", "delete_source": True}))
+        self.assertFalse(L.should_delete_file({**base, "kind": "youtube", "storage_path": None}))
+        self.assertFalse(L.should_delete_file({**base, "kind": "youtube", "tier": "drive"}))
+
 
 if __name__ == "__main__":
     unittest.main()

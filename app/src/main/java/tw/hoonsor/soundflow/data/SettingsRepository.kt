@@ -34,4 +34,26 @@ class SettingsRepository(private val context: Context) {
     suspend fun setSpeed(kind: TrackKind, v: Float) {
         context.settingsStore.edit { it[speedKey(kind)] = Speed.clamp(v) }
     }
+
+    // 檢視方式依分頁記住（F51）：模式、是否依標籤分組、排序
+    data class ViewPrefs(val mode: ViewMode = ViewMode.GRID, val groupByLabel: Boolean = false, val sort: SortSpec = SortSpec())
+
+    private fun k(kind: TrackKind, name: String) = stringPreferencesKey("view_${kind.key}_$name")
+
+    fun viewPrefs(kind: TrackKind): Flow<ViewPrefs> = context.settingsStore.data.map { p ->
+        ViewPrefs(
+            mode = ViewMode.of(p[k(kind, "mode")]),
+            groupByLabel = p[k(kind, "group")] == "1",
+            sort = SortSpec(SortKey.of(p[k(kind, "sort")]), p[k(kind, "desc")] != "0"),
+        )
+    }
+
+    suspend fun setViewPrefs(kind: TrackKind, v: ViewPrefs) {
+        context.settingsStore.edit {
+            it[k(kind, "mode")] = v.mode.key
+            it[k(kind, "group")] = if (v.groupByLabel) "1" else "0"
+            it[k(kind, "sort")] = v.sort.key.key
+            it[k(kind, "desc")] = if (v.sort.descending) "1" else "0"
+        }
+    }
 }

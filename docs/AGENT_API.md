@@ -44,7 +44,7 @@
 | `playlist_track_add` | 加入清單 | reversible | 加進自訂清單（可順便建立） |
 | `track_rename` | 重新命名 | reversible | 改顯示名稱或還原原標題 |
 | `track_mark_played` | 標記已聽 | reversible | 已聽／未聽 |
-| `track_delete` | 刪除音檔 | destructive | 移到垃圾桶（30 天可還原） |
+| `track_delete` | 刪除音檔 | destructive | 移到垃圾桶（7 天可還原，之後連雲端音檔永久刪除） |
 | `track_restore` | 還原音檔 | reversible | 從垃圾桶還原 |
 | `youtube_add` | 加入 YouTube | reversible | 送網址給 N100 抽音軌 |
 | `youtube_job_list` | 轉檔進度 | read | 排隊／轉檔中／失敗 |
@@ -112,13 +112,13 @@
 - summary：「〈…〉標成已聽完。」；undo：改回原狀態
 
 ### track_delete（destructive）
-- 第一次呼叫回 `NEEDS_CONFIRMATION`，message：「確定要把〈…〉移到垃圾桶嗎？30 天內可以還原。」
-- 成功 summary：「已移到垃圾桶，30 天內說『還原』就能救回來。」
+- 第一次呼叫回 `NEEDS_CONFIRMATION`，message：「確定要把〈…〉移到垃圾桶嗎？7 天內可以還原。」（Podcast 帶 delete_source=true 時：「…7 天後連新知雷達的音檔一起刪，網站上也聽不到，確定嗎？」）
+- 成功 summary：「已移到垃圾桶，7 天內說『還原』就能救回來。」
 - undo：`{action:"track_restore", params:{track_id}}`
 - 正在播的那集被刪 → 先跳下一集
 
 ### track_restore
-- summary：「已還原〈…〉。」；`NOT_FOUND`「垃圾桶裡沒有這集，可能超過 30 天已經清掉了。」
+- summary：「已還原〈…〉。」；`NOT_FOUND`「垃圾桶裡沒有這集，可能超過 7 天已經清掉了。」
 
 ### youtube_add
 - summary：「已送出，轉好會出現在 YouTube 分頁。」

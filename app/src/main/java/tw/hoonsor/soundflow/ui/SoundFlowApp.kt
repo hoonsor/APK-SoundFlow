@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -68,7 +69,7 @@ fun SoundFlowApp(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 Tab.TRACKS -> TracksScreen()
-                Tab.PLAYLISTS -> PlaceholderScreen("播放清單", "自訂清單與自動清單（最新加入、未聽完、聽到一半、最近播放）會在這裡。")
+                Tab.PLAYLISTS -> PlaylistsScreen()
                 Tab.QUEUE -> PlaceholderScreen("待播", "按「下一首播放」或「加入待播」的音檔會排在這裡。")
                 Tab.SETTINGS -> SettingsScreen(theme, onThemeChange)
             }
@@ -115,6 +116,11 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit) {
     val c = Sf.colors
     val context = LocalContext.current
+    var sub by rememberSaveable { mutableStateOf<String?>(null) }
+    when (sub) {
+        "trash" -> { TrashScreen { sub = null }; return }
+        "labels" -> { LabelsScreen { sub = null }; return }
+    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
         Text("設定", style = SfType.pageTitle, color = c.text, modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 14.dp))
         Section("外觀") {
@@ -126,11 +132,31 @@ private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit)
                 SfThemeId.entries.forEach { id -> ThemeCard(id, selected = id == theme, onClick = { onThemeChange(id) }, modifier = Modifier.weight(1f)) }
             }
         }
+        Section("資料管理") {
+            NavRow("顏色標籤", "新增、改名、改色、刪除") { sub = "labels" }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
+            NavRow("垃圾桶", "刪除的音檔保留 7 天，可還原或立即永久刪除") { sub = "trash" }
+        }
         Section("帳號與雲端") { AccountRows() }
         Text(
             "SoundFlow v${BuildConfig.VERSION_NAME} · ${context.packageName}",
             style = SfType.number, color = c.muted, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         )
+    }
+}
+
+@Composable
+private fun NavRow(title: String, sub: String, onClick: () -> Unit) {
+    val c = Sf.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = SfType.rowTitle, color = c.text)
+            Text(sub, style = SfType.body, color = c.muted)
+        }
+        Icon(SfIcons.Back, contentDescription = null, tint = c.muted, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = 180f })
     }
 }
 
@@ -167,7 +193,7 @@ private fun AccountRows() {
             }
             testResult?.let { Text(it, style = SfType.body, color = if (it.startsWith("連線正常")) c.accentText else c.danger) }
             SfButton("登出", primary = false, onClick = {
-                scope.launch { Graph.auth.signOut(); Graph.tracks.clear(); testResult = null }
+                scope.launch { Graph.auth.signOut(); Graph.tracks.clear(); Graph.library.clear(); testResult = null }
             }, modifier = Modifier.fillMaxWidth())
         }
         AuthState.SignedOut -> Text("尚未登入。到「音檔」分頁用信箱驗證碼登入。", style = SfType.body, color = c.muted)

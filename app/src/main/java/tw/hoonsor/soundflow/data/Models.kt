@@ -22,6 +22,10 @@ data class Track(
     val storageBucket: String?,
     val storagePath: String?,
     val createdAt: Instant,
+    /** 進垃圾桶的時間；null＝正常 */
+    val deletedAt: Instant? = null,
+    /** Podcast 永久刪除時是否連新知雷達的音檔一起刪 */
+    val deleteSource: Boolean = false,
 )
 
 /** 登入後的工作階段；refresh token 會輪替，每次刷新都要存新的 */
@@ -29,7 +33,7 @@ data class Session(val accessToken: String, val refreshToken: String, val expire
 
 /** 純邏輯：JSON 解析與顯示格式，JVM 測試涵蓋 */
 object SfJson {
-    const val TRACK_FIELDS = "id,kind,title,original_title,channel,source_url,duration_sec,tier,storage_bucket,storage_path,created_at"
+    const val TRACK_FIELDS = "id,kind,title,original_title,channel,source_url,duration_sec,tier,storage_bucket,storage_path,created_at,deleted_at,delete_source"
 
     fun parseTracks(raw: String): List<Track> {
         val arr = JSONArray(raw)
@@ -57,6 +61,8 @@ object SfJson {
             storageBucket = o.str("storage_bucket"),
             storagePath = o.str("storage_path"),
             createdAt = runCatching { Instant.parse(normalizeTimestamp(o.optString("created_at"))) }.getOrDefault(Instant.EPOCH),
+            deletedAt = o.str("deleted_at")?.let { runCatching { Instant.parse(normalizeTimestamp(it)) }.getOrNull() },
+            deleteSource = o.optBoolean("delete_source", false),
         )
     }
 
@@ -69,7 +75,8 @@ object SfJson {
                 .put("channel", t.channel ?: JSONObject.NULL).put("source_url", t.sourceUrl ?: JSONObject.NULL)
                 .put("duration_sec", t.durationSec ?: JSONObject.NULL).put("tier", t.tier)
                 .put("storage_bucket", t.storageBucket ?: JSONObject.NULL).put("storage_path", t.storagePath ?: JSONObject.NULL)
-                .put("created_at", t.createdAt.toString()))
+                .put("created_at", t.createdAt.toString())
+                .put("deleted_at", t.deletedAt?.toString() ?: JSONObject.NULL).put("delete_source", t.deleteSource))
         }
     }.toString()
 

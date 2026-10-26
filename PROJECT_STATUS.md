@@ -29,14 +29,18 @@
 - [x] v0.4.0 App：分享接收（ShareActivity，送出後立刻關閉）、YouTube 分頁的轉檔面板（N100 狀態、排隊／轉檔中／失敗＋重試／取消、貼上網址）、沒網路先存手機自動補送、私人音檔播放自動帶登入權杖
 - [x] v0.4.0 N100 服務程式：`worker/`（soundflow_worker.py、systemd 單元、每日更新 yt-dlp、install.sh）
 - [x] v0.4.0 N100 安裝（2026-10-26 12:01 上線）：倬同意金鑰放 `~/.config/soundflow/worker.env`（600，資料夾 700）並自己執行 set-key；服務 `soundflow-worker` 啟用、timer `soundflow-ytdlp-update` 啟用；yt-dlp 2026.10.21 用 Node 讀 YouTube 資訊實測成功；心跳已寫入 sf_worker_heartbeat
-- [ ] 後端：sf_progress、sf_playlist 資料表（用到的版本再建）、Edge Function drive-token、Google Cloud OAuth
+- [x] v0.5.0 後端：`sf_label`、`sf_track_label`、`sf_playlist`、`sf_playlist_item`（成員可讀寫）、sf_track 加 `delete_source`／`purge_requested_at`／`purged_at`；`sf_whoami` 改 security invoker；migration `20261026_library.sql`
+- [x] v0.5.0 App：檢視模式（精簡列表／兩欄網格，依分頁記住）、依標籤分組（可收合）、排序 8 種、篩選（收聽狀態＋多個標籤）、長按多選（加入清單、貼標籤、標為已聽、刪除）、單集「⋯」選單（播放、加入清單、標籤、已聽／未聽、改名、刪除）、刪除可復原（snackbar）、清單分頁（4 個智慧清單、自訂清單 CRUD、播放全部／隨機、上移／下移、移出）、設定頁「資料管理」（顏色標籤管理、垃圾桶：還原、立即永久刪除、全部清空）
+- [x] v0.5.0 N100：worker 0.5.0 每分鐘處理垃圾桶（7 天到期或立即永久刪除）：YouTube 刪 sf 檔；Podcast 只有選了「連新知雷達的音檔一起刪」才刪 nlm 檔；保留 sf_track 列（hidden、purged_at），避免 nlm_job 觸發器加回來；已部署並重啟
+- [ ] 後端：sf_progress（進度雲端同步）、Edge Function drive-token、Google Cloud OAuth
 - [ ] N100 封存工作（Supabase → Google Drive）
 
 ## 版本歷程
 
 | 版本 | 日期 | commit | 變更 | 為什麼 |
 |---|---|---|---|---|
-| v0.4.2 | 2026/10/26 | （本次） | 登入後確認白名單（新 RPC `sf_whoami`），不在白名單顯示「這個信箱還沒開通」；寫入被 RLS 擋下時錯誤訊息改成白名單原因；分享結果改用畫面底部卡片（不用 Toast） | 倬用 hoonsorasus 信箱登入（不在 sf_member），貼網址顯示「請重新登入」誤導、分享在 ColorOS 上完全沒反應 |
+| v0.5.0 | 2026/10/26 | （本次） | 清單管理：精簡列表／兩欄網格、依標籤分組、排序（日期／標題／長度／進度）、篩選（收聽狀態、顏色標籤）、長按多選批次動作、顏色標籤與播放清單（雲端同步）、智慧清單、改名、垃圾桶 7 天＋N100 永久刪除實體檔 | 倬要求：檔案變多後要好找、能分組、能真的刪檔；做完再做桌面小工具 |
+| v0.4.2 | 2026/10/26 | b719e0c | 登入後確認白名單（新 RPC `sf_whoami`），不在白名單顯示「這個信箱還沒開通」；寫入被 RLS 擋下時錯誤訊息改成白名單原因；分享結果改用畫面底部卡片（不用 Toast） | 倬用 hoonsorasus 信箱登入（不在 sf_member），貼網址顯示「請重新登入」誤導、分享在 ColorOS 上完全沒反應 |
 | v0.4.1 | 2026/10/26 | 7a05695 | 驗證碼接受 6～10 位數（AI_News 專案設定為 8 碼）；LAB 版在分享選單顯示「SoundFlow LAB 轉成音檔」 | 倬回報收到 8 碼驗證碼但 App 只能輸入 6 碼；正式版與 LAB 版並存時分享選單分不出來 |
 | v0.4.0 | 2026/10/26 | 09ed7ab | YouTube 分享進 SoundFlow、N100 轉檔服務（yt-dlp＋ffmpeg 轉 Opus）、YouTube 分頁轉檔進度與重試、私人音檔空間 | 倬要求提前：先能把 YouTube 影片變成音檔，再測播放與小工具 |
 | v0.3.0 | 2026/10/25 | 663edbe | Media3 背景播放（通知列、鎖定畫面、藍牙）、迷你播放列、全螢幕播放、倍速依分頁記住、循環／隨機、睡眠計時（淡出）、跳過靜音、本機收聽進度與已聽完標記 | 讓 App 真的能聽；背景播放是桌面小工具（v0.4.0）與語音動作的基礎 |
@@ -64,15 +68,31 @@
 - [ ] v0.4.0：分享私人或會員限定影片 → 顯示失敗原因，可按「重試」或「移除」
 - [ ] v0.4.0：飛航模式下分享 → 顯示「先存在手機」，關掉飛航模式打開 App 後自動送出
 - [ ] v0.4.0：「貼上網址」可以手動加入
+- [ ] v0.5.0：切換「精簡列表／兩欄網格」與「依標籤分組」，重開 App 仍記得（Podcast、YouTube 各自）
+- [ ] v0.5.0：排序（加入日期、標題、長度、收聽進度，各兩個方向）與篩選（未聽／聽到一半／已聽完、點標籤）正確
+- [ ] v0.5.0：設定 → 顏色標籤：新增、改名、改色、刪除；在音檔「⋯」→ 顏色標籤可貼多個，卡片上顯示
+- [ ] v0.5.0：長按一集進入多選 → 全選／取消、批次加入清單、貼標籤、標為已聽、刪除
+- [ ] v0.5.0：清單分頁：新增清單、加入音檔、播放全部、隨機播放、編輯（上移／下移、移出、改名、刪除清單）；4 個自動清單內容合理
+- [ ] v0.5.0：刪除 YouTube 音檔 → 「復原」可救回；在垃圾桶按「立即永久刪除」→ 約 1 分鐘內消失，Supabase Storage 的 sf 檔案也不見
+- [ ] v0.5.0：刪除 Podcast 時兩個選項都出現；選「只從 SoundFlow 移除」永久刪除後新知網站仍可播
+- [ ] v0.5.0：用另一個已開通的信箱登入，標籤與清單同步出現（雲端同步）
 
 ## 下一步
 
-1. 倬實機確認 v0.4.0（分享一支短影片走完整流程）與 v0.3.0 → 打 tag；接著 v0.5.0 桌面小工具。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
+1. 倬實機確認 v0.5.0（以及尚未打勾的 v0.3.0 播放項目）→ 打 tag；接著 v0.6.0 桌面小工具（倬 2026-10-26：清單管理完成後就做小工具）。v0.4.0 YouTube 分享 2026-10-26 倬實測轉檔成功。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
 3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
-4. SOP 第 5 步接下來（2026-10-26 調整順序）：v0.5.0 桌面小工具 → v0.6.0 清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
+4. SOP 第 5 步接下來（2026-10-26 再調整）：v0.6.0 桌面小工具 → v0.6.x 待播佇列、搜尋 →  清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-10-26（第 4 段）／電腦 A
+- 完成：倬實測 YouTube 轉檔成功；v0.5.0 清單管理（見任務清單）。新增 `data/Library.kt`（Label、Playlist、ViewMode、SortSpec、ListFilter、LibraryLogic）、`data/LibraryRepository.kt`、`ui/LibraryUi.kt`（標籤、清單、刪除、改名、單集選單）、`ui/PlaylistsScreen.kt`、`ui/ManageScreens.kt`（垃圾桶、標籤管理）；TracksScreen 重寫；SfColors 加 `SfLabelColors`（8 色）。JVM 測試 39 項、worker 測試 7 項通過；語音動作 track_delete 說明改 7 天、加選填參數 delete_source（相容檢查通過），語音總控說明書同步
+- 決定＋原因（倬選）：Podcast 刪除時讓倬選是否連新知雷達音檔一起刪；垃圾桶 7 天；標籤與清單雲端同步；檢視模式只做精簡列表、兩欄網格、依標籤分組（不做大卡片）
+- 決定＋原因（我）：永久刪除由 N100（service role）做，App 不開放刪 Storage 的權限；永久刪除後保留 sf_track 列（hidden＋purged_at），否則 nlm_job 觸發器會把 Podcast 加回來；清單排序用上移／下移，不做拖曳（Compose 原生沒有穩定的拖曳排序，第三方套件要另外評估）；標籤顏色存代號、顏色值只在 SfColors（符合 DESIGN 的單一色票）
+- 放棄＋原因：大卡片模式（倬沒選）；在 App 直接刪 Storage 檔（要給用戶端刪檔權限，風險大）
+- 未完成：實機驗證；搜尋（F30 的搜尋部分）；待播佇列（F18）
+- 環境注意：N100 worker 已更新到 0.5.0（`~/apps/soundflow-worker`）；連新知雷達音檔一起刪時，網站上該卡片的 Podcast 播放器會失效（27 號網站沒有改）
 
 ### 2026-10-26（第 3 段）／電腦 A
 - 完成：v0.4.2。倬用 `hoonsorasus@gmail.com` 登入（Auth 使用者有，但不在 sf_member）→ 讀不到 N100 心跳（顯示「還沒上線過」）、貼網址被 RLS 擋下卻顯示「請重新登入」、分享的 Toast 在 ColorOS 上沒出現。新增 migration `soundflow_whoami`（`public.sf_whoami()`，只回自己的信箱與是否成員；未登入呼叫 401）；App 登入後確認白名單、顯示開通狀態；錯誤訊息修正；ShareActivity 改 Compose 底部卡片。JVM 測試 30 項通過

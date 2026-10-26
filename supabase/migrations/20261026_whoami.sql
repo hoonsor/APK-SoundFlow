@@ -20,3 +20,7 @@ $$;
 
 revoke all on function public.sf_whoami() from public, anon;
 grant execute on function public.sf_whoami() to authenticated;
+
+-- 2026-10-26 補：改成 security invoker（判斷白名單的 soundflow_private.is_member() 本身已是 definer），
+-- 消除 Supabase 安全檢查「Signed-In Users Can Execute SECURITY DEFINER Function」
+alter function public.sf_whoami() security invoker;

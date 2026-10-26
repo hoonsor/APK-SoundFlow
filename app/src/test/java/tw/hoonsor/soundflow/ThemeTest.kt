@@ -6,6 +6,7 @@ import org.junit.Test
 import tw.hoonsor.soundflow.ui.theme.Hsl
 import tw.hoonsor.soundflow.ui.theme.SfPalettes
 import tw.hoonsor.soundflow.ui.theme.SfSemantic
+import tw.hoonsor.soundflow.ui.theme.SfLabelColors
 import tw.hoonsor.soundflow.ui.theme.SfThemeId
 import tw.hoonsor.soundflow.ui.theme.contrast
 
@@ -31,6 +32,14 @@ class ThemeTest {
             assertTrue("$id link/text（反白 toast）", contrast(p.link, p.text) >= 4.5)
             assertTrue("$id danger/surface", contrast(SfSemantic.danger, p.surface) >= 4.5)
         }
+    }
+
+    @Test fun labelColorsReadable() {
+        SfLabelColors.all.forEach { lc ->
+            assertTrue("${lc.key} 標籤字／標籤底", contrast(lc.text, lc.bg) >= 4.5)
+            all.forEach { (id, p) -> assertTrue("$id ${lc.key} 標籤字／surface", contrast(lc.text, p.surface) >= 4.5) }
+        }
+        assertEquals(SfLabelColors.all.size, SfLabelColors.all.map { it.key }.toSet().size)
     }
 
     @Test fun accentVisibleOnBackground() {

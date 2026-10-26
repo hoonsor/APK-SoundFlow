@@ -27,7 +27,7 @@ from pathlib import Path
 
 import sfw_logic as L
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 log = logging.getLogger("soundflow-worker")
 
 
@@ -47,6 +47,10 @@ class Supabase:
     def rest(self, method: str, path: str, payload=None, prefer: str = "return=representation"):
         body = json.dumps(payload, ensure_ascii=False).encode() if payload is not None else None
         return self._req(method, "/rest/v1/" + path, body, {"Content-Type": "application/json", "Prefer": prefer})
+
+    def remove(self, bucket: str, paths: list[str]):
+        body = json.dumps({"prefixes": paths}).encode()
+        self._req("DELETE", f"/storage/v1/object/{bucket}", body, {"Content-Type": "application/json"})
 
     def upload(self, bucket: str, name: str, file: Path, mime: str):
         quoted = urllib.parse.quote(name)
@@ -114,6 +118,7 @@ class Worker:
         self.db = db
         self.name = name
         self.last_beat = 0.0
+        self.last_purge = 0.0
 
     def heartbeat(self, force: bool = False):
         if not force and time.time() - self.last_beat < 300:
@@ -132,6 +137,31 @@ class Worker:
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
         self.db.rest("PATCH", f"yt_job?status=eq.processing&started_at=lt.{urllib.parse.quote(cutoff)}",
                      {"status": "queued"}, prefer="return=minimal")
+
+    def purge(self):
+        """垃圾桶永久刪除（每分鐘一次）：刪實體檔 → 清掉清單與標籤關聯 → 標記 purged_at。
+        sf_track 這一列保留（hidden），否則 nlm_job 觸發器會把 Podcast 又加回來。"""
+        if time.time() - self.last_purge < 60:
+            return
+        self.last_purge = time.time()
+        rows = self.db.rest("GET", "sf_track?select=id,kind,title,tier,storage_bucket,storage_path,delete_source,deleted_at,purge_requested_at,purged_at"
+                                   "&deleted_at=not.is.null&purged_at=is.null&limit=50") or []
+        now = now_iso()
+        for row in rows:
+            if not L.purge_due(row, now):
+                continue
+            tid = row["id"]
+            try:
+                fields = {"purged_at": now_iso(), "hidden": True}
+                if L.should_delete_file(row):
+                    self.db.remove(row["storage_bucket"], [row["storage_path"]])
+                    fields["storage_path"] = None
+                for table in ("sf_playlist_item", "sf_track_label"):
+                    self.db.rest("DELETE", f"{table}?track_id=eq.{tid}", prefer="return=minimal")
+                self.db.rest("PATCH", f"sf_track?id=eq.{tid}", fields, prefer="return=minimal")
+                log.info("永久刪除 %s「%s」%s", tid, row.get("title"), "（含實體檔）" if "storage_path" in fields else "（只從 SoundFlow 移除）")
+            except Exception as e:  # noqa: BLE001 — 下一輪再試
+                log.warning("永久刪除 %s 失敗：%s", tid, e)
 
     def claim(self) -> dict | None:
         rows = self.db.rest("GET", "yt_job?select=id,url,video_id,attempts&status=eq.queued&order=requested_at.asc&limit=1")
@@ -187,6 +217,10 @@ class Worker:
         self.requeue_stale()
         while True:
             self.heartbeat()
+            try:
+                self.purge()
+            except Exception as e:  # noqa: BLE001
+                log.warning("檢查垃圾桶失敗：%s", e)
             job = None
             try:
                 job = self.claim()

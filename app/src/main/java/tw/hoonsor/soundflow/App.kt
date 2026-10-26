@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import tw.hoonsor.soundflow.data.AuthRepository
 import tw.hoonsor.soundflow.data.AuthState
 import tw.hoonsor.soundflow.data.JobRepository
+import tw.hoonsor.soundflow.data.LibraryRepository
 import tw.hoonsor.soundflow.data.ProgressRepository
 import tw.hoonsor.soundflow.data.SettingsRepository
 import tw.hoonsor.soundflow.data.TrackRepository
@@ -33,6 +34,8 @@ object Graph {
         private set
     lateinit var jobs: JobRepository
         private set
+    lateinit var library: LibraryRepository
+        private set
     lateinit var player: PlayerConnection
         private set
 
@@ -47,6 +50,7 @@ object Graph {
         tracks = TrackRepository(app, supabase, auth)
         progress = ProgressRepository(app)
         jobs = JobRepository(app, supabase, auth)
+        library = LibraryRepository(app, supabase, auth)
         player = PlayerConnection(app, progress, appScope)
         appScope.launch {
             auth.load()
