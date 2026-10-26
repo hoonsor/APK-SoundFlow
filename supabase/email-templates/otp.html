@@ -1,0 +1,17 @@
+<!--
+  Supabase（AI_News 專案）共用的登入驗證碼信件範本。
+  新知雷達、記帳網站、SoundFlow 共用同一個登入系統，所以文字不提任何單一服務。
+  貼到：Authentication → Emails（Email Templates）→「Magic Link」與「Confirm signup」兩個範本
+  主旨：登入驗證碼
+  只放 {{ .Token }}（驗證碼），不放登入連結：三個服務都用輸入驗證碼登入，連結會開在瀏覽器反而登入錯地方。
+  2026-10-26 倬決定改成中性文字（原本是記帳網站的範本）。
+-->
+<div style="margin:0;padding:24px 16px;background:#f4f5f8;font-family:-apple-system,'Segoe UI','Noto Sans TC','Microsoft JhengHei',sans-serif;">
+  <div style="max-width:420px;margin:0 auto;background:#ffffff;border:1px solid #e1e4ea;border-radius:14px;padding:28px 24px;">
+    <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">倬的服務登入</p>
+    <h1 style="margin:0 0 18px;font-size:20px;color:#111827;">你的登入驗證碼</h1>
+    <p style="margin:0 0 20px;font-size:32px;font-weight:700;letter-spacing:6px;color:#1f2a5c;font-family:'SFMono-Regular',Consolas,monospace;">{{ .Token }}</p>
+    <p style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#374151;">請回到剛才要求登入的 App 或網站，輸入上面這組數字。驗證碼有時效，過期請重新寄送。</p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">如果不是你本人要求登入，可以直接忽略這封信，帳號不會有任何變動。</p>
+  </div>
+</div>
