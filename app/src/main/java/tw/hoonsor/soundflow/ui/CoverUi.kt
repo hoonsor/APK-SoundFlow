@@ -1,5 +1,7 @@
 package tw.hoonsor.soundflow.ui
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.LruCache
@@ -101,6 +103,8 @@ fun CoverSearchSheet(track: Track, onDismiss: () -> Unit, onDone: (String) -> Un
     var searching by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     var job by remember { mutableStateOf<Job?>(null) }
+    var pasting by remember { mutableStateOf(false) }
+    var pasteError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val hasFound = remember { Graph.covers.hasFound(track.id) }
 
@@ -126,6 +130,22 @@ fun CoverSearchSheet(track: Track, onDismiss: () -> Unit, onDone: (String) -> Un
             }
         }
     }
+    /** 剪貼簿裡可能是圖片本身（複製圖片），也可能是圖片網址（複製圖片網址） */
+    fun paste() {
+        pasteError = null
+        val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
+        val item = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+        val uri = item?.uri?.takeIf { it.scheme == "content" }
+        val url = CoverLogic.urlFromClip(item?.text?.toString())
+        if (uri == null && url == null) { pasteError = "剪貼簿裡沒有圖片，請先在 Google 長按圖片、選「複製圖片」。"; return }
+        pasting = true
+        Graph.appScope.launch {
+            val ok = if (uri != null) Graph.covers.read(uri)?.let { Graph.covers.saveFoundBytes(track.id, it) } == true
+            else Graph.covers.saveFound(track.id, url.orEmpty())
+            pasting = false
+            if (ok) { onDone("已加上封面"); onDismiss() } else pasteError = "這張圖片無法使用，請換一張或改用「從手機選圖」。"
+        }
+    }
     // 從瀏覽器分享圖片回來、設好封面後，這個面板就不用留著了
     val version by Graph.covers.version.collectAsState()
     val coverAtOpen = remember { Graph.covers.fileFor(track.id)?.lastModified() }
@@ -149,11 +169,13 @@ fun CoverSearchSheet(track: Track, onDismiss: () -> Unit, onDone: (String) -> Un
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CoverLogic.googleImagesUrl(query.trim())))) }
                         .onFailure { onDone("手機上找不到瀏覽器") }
                 })
-                SfButton("從手機選圖", primary = false, modifier = Modifier.weight(1f), onClick = {
-                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                })
+                SfButton(if (pasting) "貼上中…" else "貼上圖片", primary = false, enabled = !pasting, modifier = Modifier.weight(1f), onClick = { paste() })
             }
-            Text("Google：在圖片上長按 → 分享 → 選 SoundFlow 封面。沒有分享選項就先下載，再按「從手機選圖」。", style = SfType.meta, color = c.muted)
+            SfButton("從手機選圖", primary = false, modifier = Modifier.fillMaxWidth(), onClick = {
+                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            })
+            Text("Google：長按圖片 → 複製圖片，回到這裡按「貼上圖片」。", style = SfType.meta, color = c.muted)
+            pasteError?.let { Text(it, style = SfType.body, color = c.danger) }
             if (failed) Text("連不上搜尋服務，請確認網路後再試一次。", style = SfType.body, color = c.danger)
             results?.let { list ->
                 if (list.isEmpty()) Text("沒有找到，試試改短一點的關鍵字。", style = SfType.body, color = c.muted)

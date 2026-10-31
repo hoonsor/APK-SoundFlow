@@ -154,6 +154,10 @@ object CoverLogic {
 
     fun googleImagesUrl(query: String) = "https://www.google.com/search?udm=2&q=" + URLEncoder.encode(query, "UTF-8")
 
+    /** 剪貼簿的文字是網址才接受；是不是圖片要下載解碼才知道 */
+    fun urlFromClip(text: String?): String? =
+        text?.trim()?.takeIf { (it.startsWith("https://") || it.startsWith("http://")) && it.none(Char::isWhitespace) }
+
     /** 比對用：全形轉半形、去大小寫、去括號內的版本註記與標點 */
     fun normalize(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFKC).lowercase()
         .replace(Regex("[(\\[（【].*?[)\\]）】]"), "")

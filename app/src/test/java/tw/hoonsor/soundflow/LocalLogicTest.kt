@@ -95,6 +95,14 @@ class LocalLogicTest {
         assertEquals("米津玄師", list.first().artist)
     }
 
+    @Test fun clipboardTextMustBeAUrl() {
+        assertEquals("https://a.tw/1.jpg", CoverLogic.urlFromClip("  https://a.tw/1.jpg\n"))
+        assertNull(CoverLogic.urlFromClip("會議紀錄"))
+        assertNull(CoverLogic.urlFromClip("https://a.tw/1.jpg 另一段文字"))
+        assertNull(CoverLogic.urlFromClip("file:///data/x.jpg"))
+        assertNull(CoverLogic.urlFromClip(null))
+    }
+
     @Test fun googleImagesUrlEncodesQuery() {
         assertEquals("https://www.google.com/search?udm=2&q=%E7%B1%B3%E6%B4%A5+IRIS", CoverLogic.googleImagesUrl("米津 IRIS"))
     }
