@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +72,7 @@ import tw.hoonsor.soundflow.data.AuthState
 import tw.hoonsor.soundflow.data.Label
 import tw.hoonsor.soundflow.data.LibraryLogic
 import tw.hoonsor.soundflow.data.ListFilter
+import tw.hoonsor.soundflow.data.LocalFolder
 import tw.hoonsor.soundflow.data.SettingsRepository
 import tw.hoonsor.soundflow.data.SfFormat
 import tw.hoonsor.soundflow.data.SortKey
@@ -97,6 +100,8 @@ private sealed interface Sheet {
     data class Playlist(val ids: List<String>) : Sheet
     data class Delete(val tracks: List<Track>) : Sheet
     data class Rename(val track: Track) : Sheet
+    data class FindCover(val track: Track) : Sheet
+    data class CoverBatch(val tracks: List<Track>) : Sheet
 }
 
 @Composable
@@ -113,7 +118,10 @@ fun TracksScreen() {
 
     LaunchedEffect(kind, signedIn) {
         selection = emptySet()
-        if (signedIn) {
+        if (kind == TrackKind.LOCAL) {
+            Graph.local.load()
+            Graph.local.rescan()     // 只有檔案變動時才重讀標籤，平常很快
+        } else if (signedIn) {
             Graph.tracks.loadCache(kind)
             Graph.library.loadCache()
             launch { Graph.library.refresh() }
@@ -129,22 +137,34 @@ fun TracksScreen() {
             if (selection.isNotEmpty()) {
                 SelectionBar(selection.size, onAll = { selection = state.items.map { it.id }.toSet() }, onCancel = { selection = emptySet() })
             } else {
-                Header(state, signedIn)
+                Header(state, signedIn || kind == TrackKind.LOCAL)
             }
             KindTabs(kind) { kind = it }
-            when (val a = auth) {
+            val browser = @Composable {
+                TrackBrowser(
+                    kind, state, selection,
+                    onSelectionChange = { selection = it },
+                    onSheet = { sheet = it },
+                    onToast = { toast(it) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            // 本機音檔不需要登入
+            if (kind == TrackKind.LOCAL) browser() else when (val a = auth) {
                 AuthState.Loading -> Unit
                 AuthState.SignedOut -> Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp)) { LoginCard() }
-                is AuthState.SignedIn ->
-                    if (member == false) NotMemberCard(a.email)
-                    else TrackBrowser(
-                        kind, state, selection,
-                        onSelectionChange = { selection = it },
-                        onSheet = { sheet = it },
-                        modifier = Modifier.weight(1f),
-                    )
+                is AuthState.SignedIn -> if (member == false) NotMemberCard(a.email) else browser()
             }
-            if (selection.isNotEmpty()) {
+            if (selection.isNotEmpty() && kind == TrackKind.LOCAL) {
+                LocalSelectionActions(
+                    onCover = { sheet = Sheet.CoverBatch(Graph.tracks.find(selection)); selection = emptySet() },
+                    onPlayed = {
+                        val ids = selection
+                        scope.launch { ids.forEach { Graph.progress.markPlayed(it, true) } }
+                        selection = emptySet(); toast("已標成聽完（${ids.size} 首）")
+                    },
+                )
+            } else if (selection.isNotEmpty()) {
                 SelectionActions(
                     onPlaylist = { sheet = Sheet.Playlist(selection.toList()) },
                     onLabels = { sheet = Sheet.Labels(selection) },
@@ -163,16 +183,21 @@ fun TracksScreen() {
     when (val s = sheet) {
         is Sheet.Actions -> {
             val played = Graph.progress.get(s.track.id)?.played == true
+            val cloud = s.track.kind != TrackKind.LOCAL
+            // 本機音檔不在雲端：不能進雲端同步的清單與標籤，檔案也由手機管理
             TrackActionsSheet(
                 s.track, played, onDismiss = { sheet = null },
                 onPlay = { Graph.player.playOrToggle(state.items, state.items.indexOf(s.track)) },
-                onPlaylist = { sheet = Sheet.Playlist(listOf(s.track.id)) },
-                onLabels = { sheet = Sheet.Labels(setOf(s.track.id)) },
+                onPlaylist = if (cloud) ({ sheet = Sheet.Playlist(listOf(s.track.id)) }) else null,
+                onLabels = if (cloud) ({ sheet = Sheet.Labels(setOf(s.track.id)) }) else null,
                 onTogglePlayed = { scope.launch { Graph.progress.markPlayed(s.track.id, !played) } },
-                onRename = { sheet = Sheet.Rename(s.track) },
-                onDelete = { sheet = Sheet.Delete(listOf(s.track)) },
+                onRename = if (cloud) ({ sheet = Sheet.Rename(s.track) }) else null,
+                onDelete = if (cloud) ({ sheet = Sheet.Delete(listOf(s.track)) }) else null,
+                onFindCover = if (cloud) null else ({ sheet = Sheet.FindCover(s.track) }),
             )
         }
+        is Sheet.FindCover -> CoverSearchSheet(s.track, onDismiss = { sheet = null }, onDone = { toast(it) })
+        is Sheet.CoverBatch -> CoverBatchDialog(s.tracks) { sheet = null }
         is Sheet.Labels -> LabelPickerSheet(s.ids, onDismiss = { sheet = null; selection = emptySet() })
         is Sheet.Playlist -> PlaylistPickerSheet(s.ids, onDismiss = { sheet = null; selection = emptySet() }, onDone = { toast(it) })
         is Sheet.Rename -> RenameDialog(s.track, onDismiss = { sheet = null }, onDone = { toast(it) })
@@ -238,6 +263,18 @@ private fun SelectionActions(onPlaylist: () -> Unit, onLabels: () -> Unit, onPla
 }
 
 @Composable
+private fun LocalSelectionActions(onCover: () -> Unit, onPlayed: () -> Unit) {
+    val c = Sf.colors
+    Row(
+        Modifier.fillMaxWidth().background(c.surface).padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        ActionTile(SfIcons.Image, "找封面", c.text, Modifier.weight(1f), onCover)
+        ActionTile(SfIcons.Check, "標為已聽", c.text, Modifier.weight(1f), onPlayed)
+    }
+}
+
+@Composable
 private fun ActionTile(icon: ImageVector, label: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
     val c = Sf.colors
     val shape = RoundedCornerShape(12.dp)
@@ -275,7 +312,7 @@ private fun KindTabs(kind: TrackKind, onChange: (TrackKind) -> Unit) {
             .clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.border, RoundedCornerShape(14.dp)).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        listOf(TrackKind.PODCAST to "Podcast", TrackKind.YOUTUBE to "YouTube").forEach { (k, label) ->
+        listOf(TrackKind.PODCAST to "Podcast", TrackKind.YOUTUBE to "YouTube", TrackKind.LOCAL to "本機").forEach { (k, label) ->
             val sel = k == kind
             Box(
                 Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(10.dp))
@@ -295,8 +332,12 @@ private fun TrackBrowser(
     selection: Set<String>,
     onSelectionChange: (Set<String>) -> Unit,
     onSheet: (Sheet) -> Unit,
+    onToast: (String) -> Unit,
     modifier: Modifier,
 ) {
+    val isLocal = kind == TrackKind.LOCAL
+    val localState by Graph.local.state.collectAsState()
+    var folder by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val today = LocalDate.now(ZoneId.of("Asia/Taipei"))
@@ -309,7 +350,8 @@ private fun TrackBrowser(
     var collapsed by remember(kind) { mutableStateOf(setOf<String>()) }
     var sortMenu by remember { mutableStateOf(false) }
 
-    val visible = LibraryLogic.sort(LibraryLogic.filter(state.items, filter, labelFilter, lib.trackLabels, progress), prefs.sort, progress)
+    val base = if (isLocal && folder != null) state.items.filter { it.localFolder == folder } else state.items
+    val visible = LibraryLogic.sort(LibraryLogic.filter(base, filter, labelFilter, lib.trackLabels, progress), prefs.sort, progress)
     val groups = if (prefs.groupByLabel) LibraryLogic.group(visible, lib.labels, lib.trackLabels) else null
     val labelsById = lib.labels.associateBy { it.id }
     val selecting = selection.isNotEmpty()
@@ -328,15 +370,20 @@ private fun TrackBrowser(
     fun longPress(t: Track) = onSelectionChange(selection + t.id)
     fun setPrefs(p: SettingsRepository.ViewPrefs) = scope.launch { Graph.settings.setViewPrefs(kind, p) }
 
+    if (isLocal && localState.folders.isEmpty()) {
+        LocalEmpty(localState.scanning, modifier, onToast)
+        return
+    }
     Column(modifier) {
+        if (isLocal) LocalFolderBar(localState.folders, folder, base, { folder = it }, onToast) { onSheet(Sheet.CoverBatch(base)) }
         // 篩選：收聽狀態＋顏色標籤
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             ListFilter.entries.forEach { f -> Chip(f.label, selected = filter == f) { filter = f } }
-            if (lib.labels.isNotEmpty()) Box(Modifier.width(1.dp).height(32.dp).background(Sf.colors.border))
-            lib.labels.forEach { l ->
+            if (!isLocal && lib.labels.isNotEmpty()) Box(Modifier.width(1.dp).height(32.dp).background(Sf.colors.border))
+            if (!isLocal) lib.labels.forEach { l ->
                 SelectableLabel(l, l.id in labelFilter) { labelFilter = if (l.id in labelFilter) labelFilter - l.id else labelFilter + l.id }
             }
         }
@@ -365,12 +412,12 @@ private fun TrackBrowser(
             Text("${visible.size} 集", style = SfType.number, color = Sf.colors.muted, modifier = Modifier.weight(1f).padding(start = 4.dp))
             IconBox(SfIcons.Grid, "兩欄網格", active = prefs.mode == ViewMode.GRID) { setPrefs(prefs.copy(mode = ViewMode.GRID)) }
             IconBox(SfIcons.ListRows, "精簡列表", active = prefs.mode == ViewMode.LIST) { setPrefs(prefs.copy(mode = ViewMode.LIST)) }
-            IconBox(SfIcons.Layers, "依標籤分組", active = prefs.groupByLabel) { setPrefs(prefs.copy(groupByLabel = !prefs.groupByLabel)) }
+            if (!isLocal) IconBox(SfIcons.Layers, "依標籤分組", active = prefs.groupByLabel) { setPrefs(prefs.copy(groupByLabel = !prefs.groupByLabel)) }
         }
 
         PullToRefreshBox(
-            isRefreshing = state.loading,
-            onRefresh = { scope.launch { Graph.tracks.refresh(kind); Graph.library.refresh() } },
+            isRefreshing = state.loading || (isLocal && localState.scanning),
+            onRefresh = { scope.launch { if (isLocal) Graph.local.rescan() else { Graph.tracks.refresh(kind); Graph.library.refresh() } } },
             modifier = Modifier.fillMaxSize(),
         ) {
             val list = prefs.mode == ViewMode.LIST
@@ -382,11 +429,14 @@ private fun TrackBrowser(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (kind == TrackKind.YOUTUBE && !selecting) item(span = { GridItemSpan(maxLineSpan) }) { JobsPanel() }
+                localState.error?.takeIf { isLocal }?.let { msg -> item(span = { GridItemSpan(maxLineSpan) }) { ErrorBanner(msg) { scope.launch { Graph.local.rescan() } } } }
                 state.error?.let { msg -> item(span = { GridItemSpan(maxLineSpan) }) { ErrorBanner(msg) { scope.launch { Graph.tracks.refresh(kind) } } } }
                 lib.error?.let { msg -> item(span = { GridItemSpan(maxLineSpan) }) { ErrorBanner(msg) { Graph.library.clearError(); scope.launch { Graph.library.refresh() } } } }
                 if (state.items.isEmpty() && !state.loading && state.error == null) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        if (kind == TrackKind.PODCAST) {
+                        if (isLocal) {
+                            EmptyCard(if (localState.scanning) "掃描中…（${localState.scanned} 首）" else "這些資料夾裡沒有音檔", "支援 MP3、M4A、FLAC、OGG、Opus、WAV。往下拉可重新掃描。")
+                        } else if (kind == TrackKind.PODCAST) {
                             EmptyCard("還沒有 Podcast", "在新知雷達網站按「送進 NotebookLM」，產生完就會出現在這裡（往下拉可重新整理）。")
                         } else {
                             EmptyCard("在 YouTube 按「分享」送過來", "影片下方點「分享」→ 選「SoundFlow 轉成音檔」，N100 轉好後（通常幾分鐘）出現在這裡。")
@@ -422,6 +472,79 @@ private fun TrackBrowser(
     }
 }
 
+/** 還沒匯入任何資料夾（設計畫布第 7 列） */
+@Composable
+private fun LocalEmpty(scanning: Boolean, modifier: Modifier, onToast: (String) -> Unit) {
+    val c = Sf.colors
+    val pick = rememberFolderPicker(onToast)
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = 36.dp, vertical = 90.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(SfIcons.Folder, contentDescription = null, tint = c.accentText, modifier = Modifier.size(44.dp))
+        Text("還沒有匯入資料夾", color = c.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text("一次選一個資料夾，裡面的音檔才會出現在這裡。沒匯入的檔案 SoundFlow 看不到。", style = SfType.body, color = c.muted)
+        SfButton(if (scanning) "掃描中…" else "匯入資料夾", primary = true, enabled = !scanning, onClick = pick)
+    }
+}
+
+@Composable
+private fun rememberFolderPicker(onToast: (String) -> Unit): () -> Unit {
+    val scope = rememberCoroutineScope()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) scope.launch { onToast(runCatching { Graph.local.addFolder(uri) }.getOrElse { "這個資料夾無法匯入" }) }
+    }
+    return { launcher.launch(null) }
+}
+
+/** 資料夾切換＋再匯入＋找封面；長按資料夾可重新掃描或移除 */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun LocalFolderBar(
+    folders: List<LocalFolder>, selected: String?, shown: List<Track>, onSelect: (String?) -> Unit, onToast: (String) -> Unit, onBatch: () -> Unit,
+) {
+    val c = Sf.colors
+    val scope = rememberCoroutineScope()
+    val pick = rememberFolderPicker(onToast)
+    val version by Graph.covers.version.collectAsState()
+    val batch by Graph.coverSearch.batch.collectAsState()
+    val missing = remember(shown, version) { shown.count { Graph.covers.fileFor(it.id) == null } }
+    var menu by remember { mutableStateOf<String?>(null) }
+    Column {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Chip("全部", selected = selected == null) { onSelect(null) }
+            folders.forEach { f ->
+                val on = f.uri == selected
+                val shape = RoundedCornerShape(8.dp)
+                Box {
+                    Box(
+                        Modifier.height(32.dp).clip(shape).background(if (on) c.text else Color.Transparent).border(1.dp, if (on) c.text else c.border, shape)
+                            .combinedClickable(onLongClickLabel = "資料夾動作", onClick = { onSelect(if (on) null else f.uri) }, onLongClick = { menu = f.uri })
+                            .padding(horizontal = 11.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(f.name, style = SfType.body, color = if (on) c.bg else c.muted, maxLines = 1) }
+                    DropdownMenu(expanded = menu == f.uri, onDismissRequest = { menu = null }, containerColor = c.surface2) {
+                        DropdownMenuItem(text = { Text("重新掃描", color = c.text) }, onClick = { menu = null; scope.launch { Graph.local.rescan() } })
+                        DropdownMenuItem(text = { Text("移除資料夾（不刪手機檔案）", color = c.danger) }, onClick = {
+                            menu = null
+                            if (on) onSelect(null)
+                            scope.launch { Graph.local.removeFolder(f.uri); onToast("已移除「${f.name}」，手機裡的檔案沒有動") }
+                        })
+                    }
+                }
+            }
+            Chip("＋ 匯入", selected = false, onClick = pick)
+            val b = batch
+            if (b?.running == true) Chip("找封面中 ${b.done}/${b.total}", selected = false, onClick = onBatch)
+            else if (missing > 0 || b != null) Chip(if (b != null) "找封面結果" else "找封面（$missing）", selected = false, onClick = onBatch)
+        }
+        Text("長按資料夾可重新掃描或移除。", style = SfType.meta, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 2.dp))
+    }
+}
+
 @Composable
 private fun GroupHeader(label: Label?, title: String, count: Int, collapsed: Boolean, onToggle: () -> Unit) {
     val c = Sf.colors
@@ -439,8 +562,10 @@ private fun GroupHeader(label: Label?, title: String, count: Int, collapsed: Boo
 @Composable
 private fun Cover(t: Track, modifier: Modifier, tagSize: Int) {
     val style = SourceStyle.of(t.channel)
+    val cover = rememberCover(t.id, t.thumbnailUrl)
     Box(modifier.background(SfSemantic.cover(style.hue).toColor()), contentAlignment = Alignment.Center) {
-        Text(style.tag, color = Color.White.copy(alpha = 0.9f), fontSize = tagSize.sp, fontWeight = FontWeight.Bold)
+        if (cover != null) Image(cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else Text(style.tag, color = Color.White.copy(alpha = 0.9f), fontSize = tagSize.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -466,16 +591,21 @@ private fun TrackCard(
     val style = SourceStyle.of(t.channel)
     val shape = RoundedCornerShape(14.dp)
     val hot = selected || playing
+    val cover = rememberCover(t.id, t.thumbnailUrl)
     Column(
         Modifier.clip(shape).background(if (hot) c.accentSoft else c.surface).border(1.dp, if (hot) c.accent else c.border, shape)
             .combinedClickable(onClickLabel = if (selecting) "選取" else "播放", onLongClickLabel = "多選", onClick = onClick, onLongClick = onLongClick),
     ) {
         Box(Modifier.fillMaxWidth().height(86.dp).background(SfSemantic.cover(style.hue).toColor())) {
+            if (cover != null) {
+                Image(cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)))
+            }
             Box(Modifier.fillMaxSize().padding(8.dp)) {
                 Text(style.label, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopStart))
                 if (selecting) SelectMark(selected, Modifier.align(Alignment.TopEnd))
                 else if (p?.played == true) Icon(SfIcons.Check, contentDescription = "已聽完", tint = Color.White, modifier = Modifier.align(Alignment.TopEnd).size(16.dp))
-                Text(style.tag, color = Color.White.copy(alpha = 0.9f), fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterStart))
+                if (cover == null) Text(style.tag, color = Color.White.copy(alpha = 0.9f), fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterStart))
                 Text(
                     SfFormat.duration(t.durationSec), style = SfType.number, color = Color.White,
                     modifier = Modifier.align(Alignment.BottomEnd).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.45f))
@@ -514,10 +644,12 @@ private fun TrackRow(
             .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        // YouTube 封面是 16:9，其他是正方形
+        val coverW = if (t.kind == TrackKind.YOUTUBE) 85 else 48
         Box {
-            Cover(t, Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)), 15)
+            Cover(t, Modifier.width(coverW.dp).height(48.dp).clip(RoundedCornerShape(10.dp)), 15)
             if (selecting) SelectMark(selected, Modifier.align(Alignment.Center))
-            if (p != null && p.inProgress) Box(Modifier.align(Alignment.BottomStart).width((48 * p.fraction).dp).height(3.dp).background(c.accent))
+            if (p != null && p.inProgress) Box(Modifier.align(Alignment.BottomStart).width((coverW * p.fraction).dp).height(3.dp).background(c.accent))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(t.title, style = SfType.cardTitle, color = if (p?.played == true) c.muted else c.text, maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -296,24 +296,26 @@ fun TrackActionsSheet(
     played: Boolean,
     onDismiss: () -> Unit,
     onPlay: () -> Unit,
-    onPlaylist: () -> Unit,
-    onLabels: () -> Unit,
+    onPlaylist: (() -> Unit)?,
+    onLabels: (() -> Unit)?,
     onTogglePlayed: () -> Unit,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
+    onRename: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
+    onFindCover: (() -> Unit)? = null,
 ) {
     val c = Sf.colors
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surface) {
         Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 24.dp)) {
             Text(track.title, style = SfType.rowTitle, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp))
-            listOf(
+            listOfNotNull(
                 Triple(SfIcons.Play, "播放", onPlay),
-                Triple(SfIcons.Playlist, "加入播放清單", onPlaylist),
-                Triple(SfIcons.Tag, "顏色標籤", onLabels),
+                onFindCover?.let { Triple(SfIcons.Image, "找封面", it) },
+                onPlaylist?.let { Triple(SfIcons.Playlist, "加入播放清單", it) },
+                onLabels?.let { Triple(SfIcons.Tag, "顏色標籤", it) },
                 Triple(SfIcons.Check, if (played) "標為未聽" else "標為已聽完", onTogglePlayed),
-                Triple(SfIcons.Pencil, "重新命名", onRename),
+                onRename?.let { Triple(SfIcons.Pencil, "重新命名", it) },
             ).forEach { (icon, label, action) -> SheetRow(icon, label, c.text) { onDismiss(); action() } }
-            SheetRow(SfIcons.Trash, "移到垃圾桶", c.danger) { onDismiss(); onDelete() }
+            if (onDelete != null) SheetRow(SfIcons.Trash, "移到垃圾桶", c.danger) { onDismiss(); onDelete() }
         }
     }
 }

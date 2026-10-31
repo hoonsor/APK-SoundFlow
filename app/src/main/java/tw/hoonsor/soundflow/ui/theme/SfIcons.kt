@@ -70,4 +70,8 @@ object SfIcons {
     val ArrowDown = stroke("arrowDown", "M12,5v14M6,13l6,6 6,-6", width = 2f)
     val Back = stroke("back", "M15,5l-7,7 7,7", width = 2f)
     val Moon = stroke("moon", "M19,14.5A7.5,7.5 0 0 1 9.5,5a7.5,7.5 0 1 0 9.5,9.5z", width = 1.8f)
+    val Folder = stroke("folder", "M3.5,7.5a2,2 0 0 1 2,-2h4l2,2.2h7a2,2 0 0 1 2,2V17a2,2 0 0 1 -2,2h-13a2,2 0 0 1 -2,-2z", width = 1.8f)
+    val Plus = stroke("plus", "M12,5v14M5,12h14", width = 2.2f)
+    val Image = stroke("image", "M4,6.5a2,2 0 0 1 2,-2h12a2,2 0 0 1 2,2v11a2,2 0 0 1 -2,2H6a2,2 0 0 1 -2,-2z", "M4.5,16l4.5,-4.5 3.5,3.5 2.5,-2.5 4.5,4.5", "M15,9h0.01", width = 1.8f)
+    val RepeatOne = stroke("repeatOne", "M17,3.5L20.5,7 17,10.5", "M3.5,12V10a3,3 0 0 1 3,-3h14", "M7,20.5L3.5,17 7,13.5", "M20.5,12v2a3,3 0 0 1 -3,3h-14", "M10.9,10.6l1.5,-1v4.8", width = 1.8f)
 }

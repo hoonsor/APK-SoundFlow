@@ -28,6 +28,8 @@ class TrackRepository(
     private val context: Context,
     private val api: SupabaseClient,
     private val auth: AuthRepository,
+    /** 取得新清單後呼叫（預先下載封面） */
+    private val onRefreshed: suspend (List<Track>) -> Unit = {},
 ) {
     private val states = TrackKind.entries.associateWith { MutableStateFlow(TrackListState()) }
 
@@ -44,6 +46,7 @@ class TrackRepository(
     }
 
     suspend fun refresh(kind: TrackKind) {
+        if (kind == TrackKind.LOCAL) return
         val flow = states.getValue(kind)
         flow.update { it.copy(loading = true, error = null) }
         try {
@@ -52,6 +55,7 @@ class TrackRepository(
             val list = SfJson.parseTracks(api.get(path, auth.accessToken()))
             withContext(Dispatchers.IO) { cacheFile(kind).writeText(SfJson.tracksToJson(list)) }
             flow.value = TrackListState(items = list, syncedAt = Instant.now())
+            onRefreshed(list)
         } catch (e: SfException) {
             flow.update { it.copy(loading = false, error = e.message) }
         }
@@ -59,9 +63,15 @@ class TrackRepository(
 
     /** 登出時清掉快取，避免下一個登入的人看到 */
     suspend fun clear() {
-        withContext(Dispatchers.IO) { TrackKind.entries.forEach { cacheFile(it).delete() } }
-        states.values.forEach { it.value = TrackListState() }
+        // 本機音檔跟帳號無關，登出不清
+        withContext(Dispatchers.IO) { TrackKind.CLOUD.forEach { cacheFile(it).delete() } }
+        TrackKind.CLOUD.forEach { states.getValue(it).value = TrackListState() }
         _trash.value = TrackListState()
+    }
+
+    /** 本機音檔掃描完由 LocalRepository 放進來 */
+    fun setLocal(items: List<Track>) {
+        states.getValue(TrackKind.LOCAL).value = TrackListState(items = items, syncedAt = Instant.now())
     }
 
     /** 從所有分頁的清單裡找音軌（多選、播放清單用） */

@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
+import tw.hoonsor.soundflow.player.PlayMode
 import tw.hoonsor.soundflow.player.Speed
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,15 @@ class SettingsRepository(private val context: Context) {
         context.settingsStore.edit { it[speedKey(kind)] = Speed.clamp(v) }
     }
 
+    // 播放模式（循環／單曲／隨機）：App、通知列、小工具共用，重開機後還在
+    private val playModeKey = stringPreferencesKey("play_mode")
+
+    suspend fun playMode(): PlayMode = PlayMode.fromKey(context.settingsStore.data.first()[playModeKey])
+
+    suspend fun setPlayMode(m: PlayMode) {
+        context.settingsStore.edit { it[playModeKey] = m.name }
+    }
+
     // 檢視方式依分頁記住（F51）：模式、是否依標籤分組、排序
     data class ViewPrefs(val mode: ViewMode = ViewMode.GRID, val groupByLabel: Boolean = false, val sort: SortSpec = SortSpec())
 
@@ -42,7 +52,8 @@ class SettingsRepository(private val context: Context) {
 
     fun viewPrefs(kind: TrackKind): Flow<ViewPrefs> = context.settingsStore.data.map { p ->
         ViewPrefs(
-            mode = ViewMode.of(p[k(kind, "mode")]),
+            // 本機音檔沒有封面圖的比例高，預設用精簡列表（設計畫布第 7 列）
+            mode = p[k(kind, "mode")]?.let { ViewMode.of(it) } ?: if (kind == TrackKind.LOCAL) ViewMode.LIST else ViewMode.GRID,
             groupByLabel = p[k(kind, "group")] == "1",
             sort = SortSpec(SortKey.of(p[k(kind, "sort")]), p[k(kind, "desc")] != "0"),
         )

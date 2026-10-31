@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -117,6 +118,9 @@ private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit)
     val c = Sf.colors
     val context = LocalContext.current
     var sub by rememberSaveable { mutableStateOf<String?>(null) }
+    var batch by rememberSaveable { mutableStateOf(false) }
+    val localTracks by Graph.tracks.state(TrackKind.LOCAL).collectAsState()
+    LaunchedEffect(Unit) { Graph.local.load() }
     when (sub) {
         "trash" -> { TrashScreen { sub = null }; return }
         "labels" -> { LabelsScreen { sub = null }; return }
@@ -136,6 +140,8 @@ private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit)
             NavRow("顏色標籤", "新增、改名、改色、刪除") { sub = "labels" }
             Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
             NavRow("垃圾桶", "刪除的音檔保留 7 天，可還原或立即永久刪除") { sub = "trash" }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
+            NavRow("批次找封面", "幫本機音檔補上封面，存在 App 裡、不改音檔") { batch = true }
         }
         Section("帳號與雲端") { AccountRows() }
         Text(
@@ -143,6 +149,7 @@ private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit)
             style = SfType.number, color = c.muted, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         )
     }
+    if (batch) CoverBatchDialog(localTracks.items) { batch = false }
 }
 
 @Composable

@@ -1,6 +1,7 @@
 package tw.hoonsor.soundflow.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,7 +52,7 @@ import tw.hoonsor.soundflow.data.SfFormat
 import tw.hoonsor.soundflow.data.SourceStyle
 import tw.hoonsor.soundflow.data.TrackKind
 import tw.hoonsor.soundflow.player.PlayerUi
-import tw.hoonsor.soundflow.player.Repeat
+import tw.hoonsor.soundflow.player.PlayMode
 import tw.hoonsor.soundflow.player.Speed
 import tw.hoonsor.soundflow.player.TimeText
 import tw.hoonsor.soundflow.ui.theme.Sf
@@ -70,12 +72,16 @@ fun rememberPlayerUi(): PlayerUi {
 }
 
 @Composable
-private fun Cover(channel: String?, size: Int, radius: Int, tagSize: Int) {
+private fun Cover(id: String?, thumbnailUrl: String?, channel: String?, size: Int, radius: Int, tagSize: Int) {
     val style = SourceStyle.of(channel)
+    val cover = rememberCover(id, thumbnailUrl)
     Box(
         Modifier.size(size.dp).clip(RoundedCornerShape(radius.dp)).background(SfSemantic.cover(style.hue).toColor()),
         contentAlignment = Alignment.Center,
-    ) { Text(style.tag, color = Color.White.copy(alpha = 0.9f), fontSize = tagSize.sp, fontWeight = FontWeight.Bold) }
+    ) {
+        if (cover != null) Image(cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else Text(style.tag, color = Color.White.copy(alpha = 0.9f), fontSize = tagSize.sp, fontWeight = FontWeight.Bold)
+    }
 }
 
 @Composable
@@ -96,7 +102,7 @@ fun MiniPlayer(ui: PlayerUi, onExpand: () -> Unit) {
             .clickable(role = Role.Button, onClickLabel = "打開播放頁", onClick = onExpand),
     ) {
         Row(Modifier.fillMaxSize().padding(start = 7.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Cover(ui.channel, 42, 9, 13)
+            Cover(ui.currentId, ui.thumbnailUrl, ui.channel, 42, 9, 13)
             Column(Modifier.weight(1f)) {
                 Text(ui.title, style = SfType.cardTitle, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -133,12 +139,12 @@ fun FullPlayer(ui: PlayerUi, onClose: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RoundIcon(SfIcons.ChevronDown, "收合播放頁", iconSize = 26, onClick = onClose)
             Text(
-                "${if (ui.kind == TrackKind.YOUTUBE) "YOUTUBE" else "PODCAST"} · ${ui.index + 1}/${ui.count}",
+                "${ui.kind?.let { if (it == TrackKind.LOCAL) "本機" else it.key.uppercase() }.orEmpty()} · ${ui.index + 1}/${ui.count}",
                 style = SfType.number, color = c.muted, modifier = Modifier.weight(1f),
             )
         }
         Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Cover(ui.channel, 132, 18, 34)
+            Cover(ui.currentId, ui.thumbnailUrl, ui.channel, 132, 18, 34)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     if (ui.kind == TrackKind.PODCAST) "NotebookLM · ${style.label}" else style.label,
@@ -182,18 +188,12 @@ fun FullPlayer(ui: PlayerUi, onClose: () -> Unit) {
         val sleepLeft = if (ui.sleepEndsAt > 0) ui.sleepEndsAt - System.currentTimeMillis() else 0
         Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             StateTile(Speed.label(ui.speed), "倍速", active = ui.speed != 1f, modifier = Modifier.weight(1f)) { sheet = "speed" }
-            StateTile(
-                when (ui.repeat) { Repeat.OFF -> "關"; Repeat.ALL -> "清單"; Repeat.ONE -> "單曲" }, "循環",
-                active = ui.repeat != Repeat.OFF, modifier = Modifier.weight(1f),
-            ) { Graph.player.cycleRepeat() }
+            StateTile(ui.mode.short, "播放模式", active = ui.mode != PlayMode.ALL, modifier = Modifier.weight(1f)) { Graph.player.cycleMode() }
             StateTile(
                 when { ui.sleepEndOfTrack -> "本集"; sleepLeft > 0 -> TimeText.sleepLeft(sleepLeft); else -> "關" }, "睡眠計時",
                 active = ui.sleepEndOfTrack || sleepLeft > 0, modifier = Modifier.weight(1f),
             ) { sheet = "sleep" }
             StateTile(if (ui.skipSilence) "開" else "關", "跳過靜音", active = ui.skipSilence, modifier = Modifier.weight(1f)) { Graph.player.setSkipSilence(!ui.skipSilence) }
-        }
-        Row(Modifier.padding(top = 8.dp)) {
-            PlayerChip(if (ui.shuffle) "隨機播放：開" else "隨機播放：關", selected = ui.shuffle) { Graph.player.toggleShuffle() }
         }
 
         // 接下來
@@ -205,7 +205,7 @@ fun FullPlayer(ui: PlayerUi, onClose: () -> Unit) {
                         Modifier.fillMaxWidth().background(c.surface).padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Cover(n.channel, 32, 8, 11)
+                        Cover(n.id, n.thumbnailUrl, n.channel, 32, 8, 11)
                         Text(n.title, style = SfType.cardTitle, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         Text(SfFormat.duration((n.durationMs / 1000).toInt()), style = SfType.number, color = c.muted)
                     }
@@ -268,7 +268,7 @@ private fun SpeedSheet(current: Float) {
             Text("播放倍速", style = SfType.rowTitle, color = c.text, modifier = Modifier.weight(1f))
             Text(Speed.label(v), style = SfType.number, fontSize = 18.sp, color = c.accentText)
         }
-        Text("會記住成這個分頁的預設倍速（Podcast、YouTube 各自一個）。", style = SfType.body, color = c.muted)
+        Text("會記住成這個分頁的預設倍速（Podcast、YouTube、本機各自一個）。", style = SfType.body, color = c.muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Speed.PRESETS.forEach { p -> PlayerChip(Speed.label(p), selected = Speed.clamp(v) == p) { v = p; Graph.player.setSpeed(p) } }
         }

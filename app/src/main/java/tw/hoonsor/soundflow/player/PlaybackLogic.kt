@@ -12,8 +12,8 @@ object Speed {
     /** 夾在 0.5～3.0，並對齊 0.05 */
     fun clamp(v: Float): Float = ((v.coerceIn(MIN, MAX) * 20).roundToInt() / 20f)
 
-    /** 小工具倍速按鈕：點一下換下一個（1.0 → 1.2 → 1.3 → 1.5 → 2.0 → 1.0）；不在清單上的值跳到比它大的下一個 */
-    val WIDGET_CYCLE = listOf(1.0f, 1.2f, 1.3f, 1.5f, 2.0f)
+    /** 小工具倍速按鈕：點一下換下一個（1 → 1.25 → 1.5 → 1.75 → 2 → 1）；不在清單上的值跳到比它大的下一個 */
+    val WIDGET_CYCLE = listOf(1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
     fun nextWidget(v: Float): Float = WIDGET_CYCLE.firstOrNull { it > clamp(v) + 0.001f } ?: WIDGET_CYCLE.first()
 
     fun label(v: Float): String {
@@ -26,6 +26,32 @@ enum class Repeat(val label: String) {
     OFF("不循環"), ALL("清單循環"), ONE("單曲循環");
 
     fun next(): Repeat = entries[(ordinal + 1) % entries.size]
+}
+
+/** 播放模式（倬 2026-10-31 定案）：同一顆按鈕依序循環切換；清單永遠接著播，不會播完就停 */
+enum class PlayMode(val label: String, val short: String) {
+    ALL("循環播放", "循環"), ONE("單曲播放", "單曲"), SHUFFLE("隨機播放", "隨機");
+
+    fun next(): PlayMode = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun of(repeat: Repeat, shuffle: Boolean): PlayMode = when {
+            shuffle -> SHUFFLE
+            repeat == Repeat.ONE -> ONE
+            else -> ALL
+        }
+        fun fromKey(k: String?): PlayMode = entries.firstOrNull { it.name == k } ?: ALL
+    }
+}
+
+/** 小工具的睡眠計時鈕：關 → 15 → 30 → 60 → 關（依剩餘時間判斷目前在哪一段） */
+object SleepCycle {
+    fun nextMinutes(leftMs: Long): Int = when {
+        leftMs <= 0 -> 15
+        leftMs <= 15 * 60_000L -> 30
+        leftMs <= 30 * 60_000L -> 60
+        else -> 0
+    }
 }
 
 /** 每一集的收聽進度 */

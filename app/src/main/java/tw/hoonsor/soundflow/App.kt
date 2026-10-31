@@ -7,8 +7,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import tw.hoonsor.soundflow.data.AuthRepository
 import tw.hoonsor.soundflow.data.AuthState
+import tw.hoonsor.soundflow.data.CoverSearchRepository
+import tw.hoonsor.soundflow.data.CoverStore
 import tw.hoonsor.soundflow.data.JobRepository
 import tw.hoonsor.soundflow.data.LibraryRepository
+import tw.hoonsor.soundflow.data.LocalRepository
 import tw.hoonsor.soundflow.data.ProgressRepository
 import tw.hoonsor.soundflow.data.SettingsRepository
 import tw.hoonsor.soundflow.data.TrackRepository
@@ -38,6 +41,12 @@ object Graph {
         private set
     lateinit var player: PlayerConnection
         private set
+    lateinit var covers: CoverStore
+        private set
+    lateinit var local: LocalRepository
+        private set
+    lateinit var coverSearch: CoverSearchRepository
+        private set
 
     /** 跟 App 同壽命的背景工作（讀登入狀態等） */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -47,7 +56,10 @@ object Graph {
         val supabase = SupabaseClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_KEY)
         settings = SettingsRepository(app)
         auth = AuthRepository(app, supabase)
-        tracks = TrackRepository(app, supabase, auth)
+        covers = CoverStore(app)
+        tracks = TrackRepository(app, supabase, auth, onRefreshed = { list -> appScope.launch { covers.prefetch(list) } })
+        local = LocalRepository(app, tracks, covers)
+        coverSearch = CoverSearchRepository(covers, local, appScope)
         progress = ProgressRepository(app)
         jobs = JobRepository(app, supabase, auth)
         library = LibraryRepository(app, supabase, auth)

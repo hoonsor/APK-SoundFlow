@@ -1,7 +1,9 @@
 package tw.hoonsor.soundflow.widget
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -15,8 +17,8 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalSize
+import androidx.glance.action.Action
 import androidx.glance.action.ActionParameters
-import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -33,7 +35,9 @@ import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
+import androidx.glance.layout.RowScope
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
@@ -47,12 +51,12 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import androidx.media3.common.Player
 import kotlinx.coroutines.flow.first
 import tw.hoonsor.soundflow.Graph
 import tw.hoonsor.soundflow.R
+import tw.hoonsor.soundflow.data.CoverBitmaps
 import tw.hoonsor.soundflow.data.SourceStyle
-import tw.hoonsor.soundflow.player.Repeat
+import tw.hoonsor.soundflow.player.PlayMode
 import tw.hoonsor.soundflow.player.Speed
 import tw.hoonsor.soundflow.player.TimeText
 import tw.hoonsor.soundflow.player.WidgetLayout
@@ -66,12 +70,12 @@ import tw.hoonsor.soundflow.ui.theme.toColor
 import tw.hoonsor.soundflow.ui.theme.toColors
 
 /**
- * 桌面小工具（F24–F27）。一個可調整大小的小工具，依高度切換三種版面：
- * 精簡 4×1（標題＋上一首／播放／下一首）、標準 4×2（再加倒轉、快轉、倍速、循環、換清單）、大型 4×3（再加接下來 3 集）。
+ * 桌面小工具「全幅沉浸」（F53，設計畫布第 7 列）：封面鋪滿＋暗色遮罩，依大小切換 2×1、5×1、2×2、4×2。
  * 內容由播放服務寫入（[push]）；按鈕交給 [PlayerConnection]，播放器是空的時會從快照接續（重開機也能直接按播放）。
+ * 系統限制：小工具只收得到「點一下」，滑動與拖曳都放在點歌名開的 [WidgetPanelActivity]。
  */
 class SoundFlowWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Responsive(setOf(SIZE_COMPACT, SIZE_STANDARD, SIZE_LARGE))
+    override val sizeMode = SizeMode.Responsive(setOf(SIZE_MINI, SIZE_BAR, SIZE_SQUARE, SIZE_FULL))
     override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -87,9 +91,10 @@ class SoundFlowWidget : GlanceAppWidget() {
     }
 
     companion object {
-        private val SIZE_COMPACT = DpSize(250.dp, 60.dp)
-        private val SIZE_STANDARD = DpSize(250.dp, 130.dp)
-        private val SIZE_LARGE = DpSize(250.dp, 200.dp)
+        private val SIZE_MINI = DpSize(110.dp, 60.dp)
+        private val SIZE_BAR = DpSize(280.dp, 60.dp)
+        private val SIZE_SQUARE = DpSize(110.dp, 130.dp)
+        private val SIZE_FULL = DpSize(220.dp, 130.dp)
         private val KEY_STATE = stringPreferencesKey("state")
         private val KEY_THEME = stringPreferencesKey("theme")
 
@@ -113,151 +118,230 @@ class SoundFlowWidgetReceiver : GlanceAppWidgetReceiver() {
 // ── 版面 ──────────────────────────────────────────────────────────
 private fun cp(c: Color) = ColorProvider(c)
 
+private val White = Color.White
+private val WhiteSoft = Color(0xEBFFFFFF)
+private val OnWhite = Color(0xFF111A2E)
+private val ChipBg = Color(0x29FFFFFF)
+private val TrackBg = Color(0x47FFFFFF)
+private val Scrim = Color(0x85090D18)
+
+/** 背景圖先縮小並用 RGB_565：小工具的畫面要經過系統傳給桌面程式，圖太大會傳不過去 */
+@Composable
+private fun rememberBackdrop(s: WidgetState): Bitmap? = remember(s.coverPath, s.coverStamp) {
+    s.coverPath?.let { CoverBitmaps.decodeFile(it, 480, Bitmap.Config.RGB_565) }
+}
+
 @Composable
 private fun Content(s: WidgetState, c: SfColors) {
-    val layout = WidgetLayout.forHeightDp(LocalSize.current.height.value)
-    Column(
-        GlanceModifier.fillMaxSize().cornerRadius(20.dp).background(cp(c.bg.copy(alpha = 0.95f))).padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (!s.hasTrack) { Empty(c); return@Column }
-        when (layout) {
-            WidgetLayout.COMPACT -> Compact(s, c)
-            WidgetLayout.STANDARD -> { Header(s, c); Spacer(GlanceModifier.height(6.dp)); MainControls(s, c); Spacer(GlanceModifier.height(6.dp)); ExtraRow(s, c) }
-            WidgetLayout.LARGE -> { Header(s, c); Spacer(GlanceModifier.height(6.dp)); MainControls(s, c); Spacer(GlanceModifier.height(6.dp)); ExtraRow(s, c); UpNext(s, c) }
+    val size = LocalSize.current
+    val layout = WidgetLayout.forSizeDp(size.width.value, size.height.value)
+    val backdrop = rememberBackdrop(s)
+    val tint = SfSemantic.cover(SourceStyle.of(s.channel).hue).toColor()
+    Box(GlanceModifier.fillMaxSize().cornerRadius(24.dp).background(cp(tint))) {
+        if (backdrop != null) {
+            Image(ImageProvider(backdrop), contentDescription = null, contentScale = ContentScale.Crop, modifier = GlanceModifier.fillMaxSize())
+        } else {
+            Image(ImageProvider(R.drawable.ic_w_wave_art), contentDescription = null, contentScale = ContentScale.Crop, colorFilter = ColorFilter.tint(cp(c.accent.copy(alpha = 0.45f))), modifier = GlanceModifier.fillMaxSize())
+        }
+        Box(GlanceModifier.fillMaxSize().background(cp(Scrim))) {}
+        if (!s.hasTrack) Empty()
+        else when (layout) {
+            WidgetLayout.MINI -> Mini(s)
+            WidgetLayout.BAR -> Bar(s)
+            WidgetLayout.SQUARE -> Square(s)
+            WidgetLayout.FULL -> Full(s)
         }
     }
 }
 
 @Composable
-private fun Empty(c: SfColors) {
-    Row(GlanceModifier.fillMaxWidth().clickable(actionStartActivity<MainActivity>()), verticalAlignment = Alignment.CenterVertically) {
-        Text("SoundFlow", style = TextStyle(color = cp(c.text), fontSize = 15.sp, fontWeight = FontWeight.Bold))
-        Spacer(GlanceModifier.width(10.dp))
-        Text("打開 App 選一集開始播放", style = TextStyle(color = cp(c.muted), fontSize = 12.sp))
+private fun Empty() {
+    Column(GlanceModifier.fillMaxSize().padding(12.dp).clickable(actionStartActivity<MainActivity>()), verticalAlignment = Alignment.CenterVertically) {
+        Text("SoundFlow", style = TextStyle(color = cp(White), fontSize = 15.sp, fontWeight = FontWeight.Bold))
+        Text("打開 App 選一首開始播放", maxLines = 2, style = TextStyle(color = cp(WhiteSoft), fontSize = 12.sp))
     }
 }
 
+/** 2×1：歌名、上一首、播放、下一首 */
 @Composable
-private fun Cover(s: WidgetState, size: Int) {
-    val style = SourceStyle.of(s.channel)
-    Box(
-        GlanceModifier.size(size.dp).cornerRadius(10.dp).background(cp(SfSemantic.cover(style.hue).toColor())).clickable(actionStartActivity<MainActivity>()),
-        contentAlignment = Alignment.Center,
-    ) { Text(style.tag, style = TextStyle(color = cp(Color.White), fontSize = (size / 3).sp, fontWeight = FontWeight.Bold)) }
-}
-
-@Composable
-private fun Header(s: WidgetState, c: SfColors) {
-    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Cover(s, 44)
-        Spacer(GlanceModifier.width(10.dp))
-        Column(GlanceModifier.defaultWeight().clickable(actionStartActivity<MainActivity>())) {
-            Text(s.title, maxLines = 1, style = TextStyle(color = cp(c.text), fontSize = 14.sp, fontWeight = FontWeight.Bold))
-            Text(
-                "${TimeText.clock(s.positionMs)} / ${TimeText.clock(s.durationMs)} · ${s.source}",
-                maxLines = 1, style = TextStyle(color = cp(c.muted), fontSize = 11.sp),
-            )
-            Spacer(GlanceModifier.height(4.dp))
-            LinearProgressIndicator(progress = s.fraction, modifier = GlanceModifier.fillMaxWidth().height(3.dp), color = cp(c.accent), backgroundColor = cp(c.border))
+private fun Mini(s: WidgetState) {
+    Column(GlanceModifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 6.dp)) {
+        Title(s, 13, 1, GlanceModifier.fillMaxWidth().padding(horizontal = 4.dp))
+        Spacer(GlanceModifier.defaultWeight())
+        Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.defaultWeight())
+            PlayButton(s, 44)
+            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.defaultWeight())
         }
     }
 }
 
+/** 5×1：歌名；換清單、模式、倍速＋上一首、播放、下一首 */
 @Composable
-private fun Compact(s: WidgetState, c: SfColors) {
-    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Cover(s, 40)
-        Spacer(GlanceModifier.width(8.dp))
-        Column(GlanceModifier.defaultWeight().clickable(actionStartActivity<MainActivity>())) {
-            Text(s.title, maxLines = 1, style = TextStyle(color = cp(c.text), fontSize = 13.sp, fontWeight = FontWeight.Bold))
-            LinearProgressIndicator(progress = s.fraction, modifier = GlanceModifier.fillMaxWidth().height(3.dp), color = cp(c.accent), backgroundColor = cp(c.border))
+private fun Bar(s: WidgetState) {
+    Column(GlanceModifier.fillMaxSize().padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 6.dp)) {
+        Title(s, 14, 1, GlanceModifier.fillMaxWidth())
+        Spacer(GlanceModifier.defaultWeight())
+        Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            ListChip(s, 92)
+            Spacer(GlanceModifier.width(4.dp))
+            ModeButton(s, 38)
+            Spacer(GlanceModifier.width(4.dp))
+            SpeedButton(s, 52, 38)
+            Spacer(GlanceModifier.defaultWeight())
+            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>())
+            PlayButton(s, 44)
+            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>())
         }
-        IconButton(R.drawable.ic_w_prev, c.text, actionRunCallback<PrevAction>())
-        PlayButton(s, c, 44)
-        IconButton(R.drawable.ic_w_next, c.text, actionRunCallback<NextAction>())
     }
 }
 
+/** 2×2：歌名；上一首、播放、下一首；換清單、模式、倍速（按鈕與 5×1 相同） */
 @Composable
-private fun MainControls(s: WidgetState, c: SfColors) {
-    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(R.drawable.ic_w_back15, c.text, actionRunCallback<Back15Action>(), modifier = GlanceModifier.defaultWeight())
-        IconButton(R.drawable.ic_w_prev, c.text, actionRunCallback<PrevAction>(), modifier = GlanceModifier.defaultWeight())
-        PlayButton(s, c, 48)
-        IconButton(R.drawable.ic_w_next, c.text, actionRunCallback<NextAction>(), modifier = GlanceModifier.defaultWeight())
-        IconButton(R.drawable.ic_w_fwd30, c.text, actionRunCallback<Fwd30Action>(), modifier = GlanceModifier.defaultWeight())
-    }
-}
-
-@Composable
-private fun ExtraRow(s: WidgetState, c: SfColors) {
-    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Pill(Speed.label(s.speed), active = s.speed != 1f, c = c, action = actionRunCallback<SpeedAction>(), modifier = GlanceModifier.defaultWeight())
-        Spacer(GlanceModifier.width(6.dp))
-        Pill(
-            when (s.repeat) { Repeat.OFF -> "循環：關"; Repeat.ALL -> "清單循環"; Repeat.ONE -> "單曲循環" },
-            active = s.repeat != Repeat.OFF, c = c, action = actionRunCallback<RepeatAction>(), modifier = GlanceModifier.defaultWeight(),
-            icon = R.drawable.ic_w_repeat,
+private fun Square(s: WidgetState) {
+    Column(GlanceModifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp)) {
+        Title(s, 15, 2, GlanceModifier.fillMaxWidth().padding(horizontal = 4.dp))
+        Text(
+            "${s.source} · 第 ${s.index + 1} 首", maxLines = 1,
+            style = TextStyle(color = cp(WhiteSoft), fontSize = 11.sp), modifier = GlanceModifier.padding(start = 4.dp, end = 4.dp, top = 4.dp),
         )
-        Spacer(GlanceModifier.width(6.dp))
-        Pill("換清單", active = false, c = c, action = actionStartActivity<WidgetPickerActivity>(), modifier = GlanceModifier.defaultWeight(), icon = R.drawable.ic_w_playlist)
-    }
-}
-
-@Composable
-private fun UpNext(s: WidgetState, c: SfColors) {
-    if (s.upNext.isEmpty()) return
-    Spacer(GlanceModifier.height(6.dp))
-    s.upNext.forEachIndexed { i, title ->
-        val target = s.upNextIndex.getOrNull(i) ?: return@forEachIndexed
-        Row(
-            GlanceModifier.fillMaxWidth().height(34.dp).clickable(actionRunCallback<JumpAction>(actionParametersOf(JumpAction.INDEX to target))),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("${i + 2}", style = TextStyle(color = cp(c.muted), fontSize = 11.sp))
-            Spacer(GlanceModifier.width(10.dp))
-            Text(title, maxLines = 1, style = TextStyle(color = cp(c.text), fontSize = 13.sp))
+        Spacer(GlanceModifier.defaultWeight())
+        Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.defaultWeight(), 24)
+            PlayButton(s, 46)
+            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.defaultWeight(), 24)
+        }
+        Spacer(GlanceModifier.height(6.dp))
+        Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Round(R.drawable.ic_w_playlist, "切換播放清單：${s.source}", actionStartActivity<WidgetPickerActivity>(), 40)
+            Spacer(GlanceModifier.defaultWeight())
+            ModeButton(s, 40)
+            Spacer(GlanceModifier.defaultWeight())
+            SpeedButton(s, 46, 40)
         }
     }
 }
 
+/** 4×2：上排換清單、模式、倍速、睡眠、面板；中間歌名、時間、進度；下排倒退、上下首、播放、快轉 */
 @Composable
-private fun PlayButton(s: WidgetState, c: SfColors, size: Int) {
+private fun Full(s: WidgetState) {
+    val sleepLeft = s.sleepEndsAt - System.currentTimeMillis()
+    Column(GlanceModifier.fillMaxSize().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp)) {
+        Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            ListChip(s, 92)
+            Spacer(GlanceModifier.defaultWeight())
+            ModeButton(s, 38)
+            Spacer(GlanceModifier.width(5.dp))
+            SpeedButton(s, 52, 38)
+            Spacer(GlanceModifier.width(5.dp))
+            Round(R.drawable.ic_w_moon, "睡眠計時", actionRunCallback<SleepAction>(), 38, active = sleepLeft > 0)
+            Spacer(GlanceModifier.width(5.dp))
+            Round(R.drawable.ic_w_sliders, "開啟控制面板", actionStartActivity<WidgetPanelActivity>(), 38)
+        }
+        Spacer(GlanceModifier.defaultWeight())
+        Column(GlanceModifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+            Title(s, 16, 1, GlanceModifier.fillMaxWidth())
+            val sleepText = if (sleepLeft > 0) " · ${TimeText.sleepLeft(sleepLeft)}後停止" else ""
+            Text(
+                "第 ${s.index + 1} 首 · ${TimeText.clock(s.positionMs)} / ${TimeText.clock(s.durationMs)}$sleepText", maxLines = 1,
+                style = TextStyle(color = cp(WhiteSoft), fontSize = 11.sp),
+            )
+            Spacer(GlanceModifier.height(7.dp))
+            LinearProgressIndicator(progress = s.fraction, modifier = GlanceModifier.fillMaxWidth().height(3.dp), color = cp(White), backgroundColor = cp(TrackBg))
+        }
+        Spacer(GlanceModifier.height(4.dp))
+        Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Seek(R.drawable.ic_w_back15, "15", "倒退 15 秒", actionRunCallback<Back15Action>())
+            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.defaultWeight(), 26)
+            PlayButton(s, 48)
+            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.defaultWeight(), 26)
+            Seek(R.drawable.ic_w_fwd30, "30", "快轉 30 秒", actionRunCallback<Fwd30Action>())
+        }
+    }
+}
+
+/** 點歌名開手勢控制面板 */
+@Composable
+private fun Title(s: WidgetState, size: Int, lines: Int, modifier: GlanceModifier) {
+    Text(
+        s.title, maxLines = lines, modifier = modifier.clickable(actionStartActivity<WidgetPanelActivity>()),
+        style = TextStyle(color = cp(White), fontSize = size.sp, fontWeight = FontWeight.Bold),
+    )
+}
+
+@Composable
+private fun PlayButton(s: WidgetState, size: Int) {
     Box(
-        GlanceModifier.size(size.dp).cornerRadius(14.dp).background(cp(c.accent)).clickable(actionRunCallback<PlayPauseAction>()),
+        GlanceModifier.size(size.dp).cornerRadius((size / 2).dp).background(cp(White)).clickable(actionRunCallback<PlayPauseAction>()),
         contentAlignment = Alignment.Center,
     ) {
         Image(
             ImageProvider(if (s.playing) R.drawable.ic_w_pause else R.drawable.ic_w_play),
             contentDescription = if (s.playing) "暫停" else "播放",
-            colorFilter = ColorFilter.tint(cp(c.onAccent)), modifier = GlanceModifier.size((size / 2.2).dp),
+            colorFilter = ColorFilter.tint(cp(OnWhite)), modifier = GlanceModifier.size((size * 0.45).dp),
         )
     }
 }
 
 @Composable
-private fun IconButton(icon: Int, tint: Color, action: androidx.glance.action.Action, modifier: GlanceModifier = GlanceModifier) {
-    Box(modifier.height(44.dp).width(40.dp).clickable(action), contentAlignment = Alignment.Center) {
-        Image(ImageProvider(icon), contentDescription = null, colorFilter = ColorFilter.tint(cp(tint)), modifier = GlanceModifier.size(22.dp))
+private fun Icon(icon: Int, label: String, action: Action, modifier: GlanceModifier = GlanceModifier.width(40.dp), iconSize: Int = 22) {
+    Box(modifier.height(44.dp).clickable(action), contentAlignment = Alignment.Center) {
+        Image(ImageProvider(icon), contentDescription = label, colorFilter = ColorFilter.tint(cp(White)), modifier = GlanceModifier.size(iconSize.dp))
+    }
+}
+
+/** 倒退／快轉：圖示中間疊秒數 */
+@Composable
+private fun RowScope.Seek(icon: Int, seconds: String, label: String, action: Action) {
+    Box(GlanceModifier.defaultWeight().height(48.dp).clickable(action), contentAlignment = Alignment.Center) {
+        Image(ImageProvider(icon), contentDescription = label, colorFilter = ColorFilter.tint(cp(White)), modifier = GlanceModifier.size(30.dp))
+        Text(seconds, style = TextStyle(color = cp(White), fontSize = 9.sp, fontWeight = FontWeight.Bold))
+    }
+}
+
+/** 圓形半透明按鈕；active＝使用中（反白） */
+@Composable
+private fun Round(icon: Int, label: String, action: Action, size: Int, active: Boolean = false) {
+    Box(
+        GlanceModifier.size(size.dp).cornerRadius((size / 2).dp).background(cp(if (active) White else ChipBg)).clickable(action),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(ImageProvider(icon), contentDescription = label, colorFilter = ColorFilter.tint(cp(if (active) OnWhite else White)), modifier = GlanceModifier.size(18.dp))
     }
 }
 
 @Composable
-private fun Pill(label: String, active: Boolean, c: SfColors, action: androidx.glance.action.Action, modifier: GlanceModifier, icon: Int? = null) {
+private fun ModeButton(s: WidgetState, size: Int) {
+    val icon = when (s.mode) {
+        PlayMode.ALL -> R.drawable.ic_w_repeat
+        PlayMode.ONE -> R.drawable.ic_w_repeat_one
+        PlayMode.SHUFFLE -> R.drawable.ic_w_shuffle
+    }
+    Round(icon, "播放模式：${s.mode.label}", actionRunCallback<ModeAction>(), size)
+}
+
+@Composable
+private fun SpeedButton(s: WidgetState, width: Int, height: Int) {
+    Box(
+        GlanceModifier.width(width.dp).height(height.dp).cornerRadius((height / 2).dp).background(cp(ChipBg)).clickable(actionRunCallback<SpeedAction>()),
+        contentAlignment = Alignment.Center,
+    ) { Text(Speed.label(s.speed), maxLines = 1, style = TextStyle(color = cp(White), fontSize = 12.sp, fontWeight = FontWeight.Medium)) }
+}
+
+@Composable
+private fun ListChip(s: WidgetState, width: Int) {
     Row(
-        modifier.height(36.dp).cornerRadius(10.dp).background(cp(if (active) c.accentSoft else c.surface)).clickable(action).padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally,
+        GlanceModifier.width(width.dp).height(38.dp).cornerRadius(19.dp).background(cp(ChipBg)).clickable(actionStartActivity<WidgetPickerActivity>())
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) {
-            Image(ImageProvider(icon), contentDescription = null, colorFilter = ColorFilter.tint(cp(if (active) c.accentText else c.text)), modifier = GlanceModifier.size(16.dp))
-            Spacer(GlanceModifier.width(4.dp))
-        }
-        Text(label, maxLines = 1, style = TextStyle(color = cp(if (active) c.accentText else c.text), fontSize = 12.sp, fontWeight = FontWeight.Medium))
+        Image(ImageProvider(R.drawable.ic_w_playlist), contentDescription = "切換播放清單", colorFilter = ColorFilter.tint(cp(White)), modifier = GlanceModifier.size(15.dp))
+        Spacer(GlanceModifier.width(5.dp))
+        Text(s.source, maxLines = 1, style = TextStyle(color = cp(White), fontSize = 12.sp, fontWeight = FontWeight.Medium))
     }
 }
 
-// ── 按鈕動作：Glance 在 App 的 process 裡執行；PlayerConnection 會在需要時從快照接續 ──
+// ── 按鈕動作：Glance 在 App 的 process 裡執行；PlayerConnection 負責切回主執行緒，需要時從快照接續 ──
 class PlayPauseAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.togglePlayNow()
 }
@@ -284,21 +368,10 @@ class SpeedAction : ActionCallback {
         Graph.player.exec { it.setPlaybackSpeed(Speed.nextWidget(it.playbackParameters.speed)) }
 }
 
-class RepeatAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.exec {
-        it.repeatMode = when (it.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
-        }
-    }
+class ModeAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.cycleModeNow()
 }
 
-class JumpAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val target = parameters[INDEX] ?: return
-        Graph.player.exec { if (target in 0 until it.mediaItemCount) { it.seekTo(target, 0); it.play() } }
-    }
-
-    companion object { val INDEX = ActionParameters.Key<Int>("index") }
+class SleepAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.cycleSleepNow()
 }

@@ -74,7 +74,10 @@ class PlaybackService : MediaSessionService() {
             .setSeekBackIncrementMs(15_000)
             .setSeekForwardIncrementMs(30_000)
             .build()
+        // 清單永遠接著播。要在掛 listener 之前設，否則預設值會被 saveMode 存起來，蓋掉上次的模式
+        player.repeatMode = Player.REPEAT_MODE_ALL
         player.addListener(listener)
+        scope.launch { player.applyMode(Graph.settings.playMode()) }
 
         val openApp = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -123,6 +126,9 @@ class PlaybackService : MediaSessionService() {
             }
         }
 
+        override fun onRepeatModeChanged(repeatMode: Int) = saveMode()
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = saveMode()
+
         override fun onPlaybackParametersChanged(params: PlaybackParameters) {
             if (applyingDefaultSpeed) return
             val kind = kindOf(player.currentMediaItem) ?: return
@@ -130,6 +136,12 @@ class PlaybackService : MediaSessionService() {
         }
     }
     private var previousId: String? = null
+
+    private fun saveMode() {
+        val repeat = if (player.repeatMode == Player.REPEAT_MODE_ONE) Repeat.ONE else Repeat.ALL
+        val mode = PlayMode.of(repeat, player.shuffleModeEnabled)
+        scope.launch { Graph.settings.setPlayMode(mode) }
+    }
 
     private fun kindOf(item: MediaItem?): TrackKind? =
         item?.mediaMetadata?.extras?.getString(EXTRA_KIND)?.let { k -> TrackKind.entries.firstOrNull { it.key == k } }
@@ -180,6 +192,10 @@ class PlaybackService : MediaSessionService() {
             }
             val nextIdx = Queue.upNext(player.mediaItemCount, player.currentMediaItemIndex, 3, repeat == Repeat.ALL && !player.shuffleModeEnabled)
             val next = nextIdx.map { player.getMediaItemAt(it).mediaMetadata.title?.toString().orEmpty() }
+            val id = item?.mediaId
+            val thumb = m?.extras?.getString(MediaItems.EXTRA_THUMB)
+            if (id != null && thumb != null && Graph.covers.fileFor(id) == null) Graph.covers.ensureThumb(id, thumb)
+            val cover = id?.let { Graph.covers.fileFor(it) }
             val state = WidgetState(
                 title = m?.title?.toString().orEmpty(),
                 channel = m?.extras?.getString(MediaItems.EXTRA_CHANNEL),
@@ -193,6 +209,11 @@ class PlaybackService : MediaSessionService() {
                 upNext = next,
                 upNextIndex = nextIdx,
                 updatedAt = System.currentTimeMillis(),
+                shuffle = player.shuffleModeEnabled,
+                index = player.currentMediaItemIndex,
+                sleepEndsAt = sleepEndsAt,
+                coverPath = cover?.path,
+                coverStamp = cover?.lastModified() ?: 0,
             )
             // 播放器被清空（例如停止）時保留上一次的內容，小工具才看得到「上次聽到哪」
             if (state.hasTrack || !WidgetState.load(applicationContext).hasTrack) {
@@ -234,6 +255,7 @@ class PlaybackService : MediaSessionService() {
             putBoolean(EXTRA_SLEEP_END_OF_TRACK, sleepEndOfTrack)
             putBoolean(EXTRA_SKIP_SILENCE, skipSilence)
         })
+        scheduleWidget()
     }
 
     private inner class Callback : MediaSession.Callback {

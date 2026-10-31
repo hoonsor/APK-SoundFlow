@@ -7,7 +7,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-enum class TrackKind(val key: String) { PODCAST("podcast"), YOUTUBE("youtube") }
+enum class TrackKind(val key: String) {
+    PODCAST("podcast"), YOUTUBE("youtube"), LOCAL("local");
+
+    companion object {
+        /** 存在雲端（sf_track）的種類；LOCAL 只在手機上 */
+        val CLOUD = listOf(PODCAST, YOUTUBE)
+    }
+}
 
 /** sf_track 的一列（只取 App 需要的欄位） */
 data class Track(
@@ -26,6 +33,12 @@ data class Track(
     val deletedAt: Instant? = null,
     /** Podcast 永久刪除時是否連新知雷達的音檔一起刪 */
     val deleteSource: Boolean = false,
+    /** YouTube 封面網址（sf_track.thumbnail_url） */
+    val thumbnailUrl: String? = null,
+    /** 本機音檔的 content:// 網址 */
+    val localUri: String? = null,
+    /** 本機音檔屬於哪個匯入的資料夾（資料夾網址） */
+    val localFolder: String? = null,
 )
 
 /** 登入後的工作階段；refresh token 會輪替，每次刷新都要存新的 */
@@ -33,7 +46,7 @@ data class Session(val accessToken: String, val refreshToken: String, val expire
 
 /** 純邏輯：JSON 解析與顯示格式，JVM 測試涵蓋 */
 object SfJson {
-    const val TRACK_FIELDS = "id,kind,title,original_title,channel,source_url,duration_sec,tier,storage_bucket,storage_path,created_at,deleted_at,delete_source"
+    const val TRACK_FIELDS = "id,kind,title,original_title,channel,source_url,duration_sec,tier,storage_bucket,storage_path,created_at,deleted_at,delete_source,thumbnail_url"
 
     fun parseTracks(raw: String): List<Track> {
         val arr = JSONArray(raw)
@@ -46,6 +59,7 @@ object SfJson {
         val kind = when (o.optString("kind")) {
             "podcast" -> TrackKind.PODCAST
             "youtube" -> TrackKind.YOUTUBE
+            "local" -> TrackKind.LOCAL
             else -> return null
         }
         val title = o.str("title") ?: return null
@@ -63,6 +77,9 @@ object SfJson {
             createdAt = runCatching { Instant.parse(normalizeTimestamp(o.optString("created_at"))) }.getOrDefault(Instant.EPOCH),
             deletedAt = o.str("deleted_at")?.let { runCatching { Instant.parse(normalizeTimestamp(it)) }.getOrNull() },
             deleteSource = o.optBoolean("delete_source", false),
+            thumbnailUrl = o.str("thumbnail_url"),
+            localUri = o.str("local_uri"),
+            localFolder = o.str("local_folder"),
         )
     }
 
@@ -76,7 +93,9 @@ object SfJson {
                 .put("duration_sec", t.durationSec ?: JSONObject.NULL).put("tier", t.tier)
                 .put("storage_bucket", t.storageBucket ?: JSONObject.NULL).put("storage_path", t.storagePath ?: JSONObject.NULL)
                 .put("created_at", t.createdAt.toString())
-                .put("deleted_at", t.deletedAt?.toString() ?: JSONObject.NULL).put("delete_source", t.deleteSource))
+                .put("deleted_at", t.deletedAt?.toString() ?: JSONObject.NULL).put("delete_source", t.deleteSource)
+                .put("thumbnail_url", t.thumbnailUrl ?: JSONObject.NULL)
+                .put("local_uri", t.localUri ?: JSONObject.NULL).put("local_folder", t.localFolder ?: JSONObject.NULL))
         }
     }.toString()
 
@@ -108,6 +127,7 @@ object SfJson {
 object SfUrls {
     /** 音檔串流網址；tier = drive 的封存檔要等 v0.7（Drive 權杖）才能播，先回 null */
     fun audio(baseUrl: String, t: Track): String? {
+        if (t.kind == TrackKind.LOCAL) return t.localUri
         if (t.tier != "supabase") return null
         val bucket = t.storageBucket ?: return null
         val path = t.storagePath ?: return null
@@ -120,6 +140,10 @@ object SfUrls {
     val PRIVATE_BUCKETS = setOf("sf")
 
     fun needsAuth(url: String) = "/storage/v1/object/authenticated/" in url
+
+    /** 有些影片沒有 maxresdefault：改抓每支影片都有的 hqdefault */
+    fun thumbnailFallback(url: String): String? =
+        Regex("i\\.ytimg\\.com/vi(?:_webp)?/([^/]+)/").find(url)?.groupValues?.get(1)?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
 }
 
 /** 顯示用格式 */
