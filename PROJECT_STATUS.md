@@ -88,12 +88,21 @@
 
 ## 下一步
 
-1. 等倬在設計畫布第 6 列選小工具方案 → 重做小工具＋手勢控制面板、修按鈕無反應 → 實機確認 → 打 tag。v0.5.0 已於 2026-10-26 實機通過並打 tag；v0.3.0／v0.4.0 的個別項目倬未逐項回報，以 v0.5.0 整體通過為準（倬 2026-10-26：清單管理完成後就做小工具）。v0.4.0 YouTube 分享 2026-10-26 倬實測轉檔成功。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
+1. 等倬確認設計畫布第 7 列（Nova 全幅沉浸四尺寸、本機音檔、YouTube 小封面）→ 修按鈕無反應（包 `withContext(Dispatchers.Main)`）→ 重做小工具＋手勢控制面板 → F55 封面 → F54 本機音檔 → 實機確認 → 打 tag。v0.5.0 已於 2026-10-26 實機通過並打 tag；v0.3.0／v0.4.0 的個別項目倬未逐項回報，以 v0.5.0 整體通過為準（倬 2026-10-26：清單管理完成後就做小工具）。v0.4.0 YouTube 分享 2026-10-26 倬實測轉檔成功。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
 3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
 4. SOP 第 5 步接下來（2026-10-26 再調整）：v0.6.0 桌面小工具 → v0.6.x 待播佇列、搜尋 →  清單／待播／多選／垃圾桶 → v0.7.0 快取與 Drive 封存 → v0.8.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-10-31（第 2 段）／電腦 A
+- 倬回報：按「換清單」有跳出來，其他按鈕沒反應。換清單走 `actionStartActivity`，不經過 MediaController，符合上一段的主執行緒推測（仍待修完實機確認）
+- 倬選定全幅沉浸方向，並提出 F53（Nova 7 列 × 5 欄的 5×1、2×1、2×2、4×2）、F54（本機音檔，整個資料夾匯入）、F55（YouTube 封面）。這一段**沒有改程式**
+- 完成：畫布第 7 列新增「Nova 7×5 全幅沉浸四尺寸」與「音檔頁籤」，兩張都可操作
+- 決定＋原因：播放模式集中成一顆循環切換鈕（循環→單曲→隨機），一格放得下；倍速鈕點一下換常用倍速，要細調就點歌名開控制面板；本機放在音檔頁第三個分段，分頁一直在，沒匯入就顯示空狀態與匯入按鈕；本機資料夾用 `ACTION_OPEN_DOCUMENT_TREE` 持久授權，不要求 `MANAGE_EXTERNAL_STORAGE`，權限最小
+- 查證：`sf_track` 的 3 筆 YouTube 都已有 `thumbnail_url`（i.ytimg.com 的 webp），舊資料不用回填；App 目前沒有取這個欄位（`SfJson.TRACK_FIELDS`、`Track` 要補）；5 筆 Podcast 沒有封面，維持波形圖案
+- 實作提醒：RemoteViews 傳 bitmap 有大小上限，小工具封面要縮到約 480px 寬，或用 FileProvider 的 URI 給 Glance；Glance 圖示只能用 drawable，15／30 的數字要做成向量路徑；進度只在狀態改變時更新，不會每秒走
+- 未完成：倬確認設計；實機格子尺寸未量，畫布以每格約 76×104 dp 估算，靠 `SizeMode.Responsive` 吸收誤差
 
 ### 2026-10-31／電腦 A
 - 倬實機回報 v0.6.0：小工具按了沒反應（已關電池最佳化）、介面不好看；要求先出設計，確認後才改程式。這一段**沒有改程式**
