@@ -36,6 +36,14 @@ class LocalLogicTest {
         assertEquals("123", LocalLogic.titleFromFileName("123.mp3"))
     }
 
+    @Test fun mergeKeepsScannedVersionAndDropsRemovedFolders() {
+        val scanned = entry.copy(title = "新標題")
+        val other = entry.copy(id = "local:2")
+        val gone = entry.copy(id = "local:3", folderUri = "content://tree/removed")
+        val all = LocalLogic.merge(listOf(scanned), listOf(entry, other, gone), setOf(entry.folderUri))
+        assertEquals(listOf(scanned, other), all)
+    }
+
     @Test fun trackRoundTripsThroughSnapshotJson() {
         val t = LocalLogic.toTrack(entry, "音樂")
         assertEquals(TrackKind.LOCAL, t.kind)

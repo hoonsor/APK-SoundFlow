@@ -416,7 +416,7 @@ private fun TrackBrowser(
         }
 
         PullToRefreshBox(
-            isRefreshing = state.loading || (isLocal && localState.scanning),
+            isRefreshing = state.loading,
             onRefresh = { scope.launch { if (isLocal) Graph.local.rescan() else { Graph.tracks.refresh(kind); Graph.library.refresh() } } },
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -490,9 +490,9 @@ private fun LocalEmpty(scanning: Boolean, modifier: Modifier, onToast: (String) 
 
 @Composable
 private fun rememberFolderPicker(onToast: (String) -> Unit): () -> Unit {
-    val scope = rememberCoroutineScope()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) scope.launch { onToast(runCatching { Graph.local.addFolder(uri) }.getOrElse { "這個資料夾無法匯入" }) }
+        // 匯入第一個資料夾後這個畫面就換版了，工作不能綁在畫面上
+        if (uri != null) Graph.appScope.launch { onToast(runCatching { Graph.local.addFolder(uri) }.getOrElse { "這個資料夾無法匯入" }) }
     }
     return { launcher.launch(null) }
 }
@@ -504,8 +504,8 @@ private fun LocalFolderBar(
     folders: List<LocalFolder>, selected: String?, shown: List<Track>, onSelect: (String?) -> Unit, onToast: (String) -> Unit, onBatch: () -> Unit,
 ) {
     val c = Sf.colors
-    val scope = rememberCoroutineScope()
     val pick = rememberFolderPicker(onToast)
+    val local by Graph.local.state.collectAsState()
     val version by Graph.covers.version.collectAsState()
     val batch by Graph.coverSearch.batch.collectAsState()
     val missing = remember(shown, version) { shown.count { Graph.covers.fileFor(it.id) == null } }
@@ -527,11 +527,11 @@ private fun LocalFolderBar(
                         contentAlignment = Alignment.Center,
                     ) { Text(f.name, style = SfType.body, color = if (on) c.bg else c.muted, maxLines = 1) }
                     DropdownMenu(expanded = menu == f.uri, onDismissRequest = { menu = null }, containerColor = c.surface2) {
-                        DropdownMenuItem(text = { Text("重新掃描", color = c.text) }, onClick = { menu = null; scope.launch { Graph.local.rescan() } })
+                        DropdownMenuItem(text = { Text("重新掃描", color = c.text) }, onClick = { menu = null; Graph.local.rescan() })
                         DropdownMenuItem(text = { Text("移除資料夾（不刪手機檔案）", color = c.danger) }, onClick = {
                             menu = null
                             if (on) onSelect(null)
-                            scope.launch { Graph.local.removeFolder(f.uri); onToast("已移除「${f.name}」，手機裡的檔案沒有動") }
+                            Graph.appScope.launch { Graph.local.removeFolder(f.uri); onToast("已移除「${f.name}」，手機裡的檔案沒有動") }
                         })
                     }
                 }
@@ -541,7 +541,7 @@ private fun LocalFolderBar(
             if (b?.running == true) Chip("找封面中 ${b.done}/${b.total}", selected = false, onClick = onBatch)
             else if (missing > 0 || b != null) Chip(if (b != null) "找封面結果" else "找封面（$missing）", selected = false, onClick = onBatch)
         }
-        Text("長按資料夾可重新掃描或移除。", style = SfType.meta, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 2.dp))
+        Text(if (local.scanning) "掃描中…（${local.scanned} 首），可以離開這頁" else "長按資料夾可重新掃描或移除。", style = SfType.meta, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 2.dp))
     }
 }
 

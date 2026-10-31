@@ -199,27 +199,31 @@ private fun Bar(s: WidgetState) {
 /** 2×2：歌名；上一首、播放、下一首；換清單、模式、倍速（按鈕與 5×1 相同） */
 @Composable
 private fun Square(s: WidgetState) {
-    Column(GlanceModifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp)) {
-        Title(s, 15, 2, GlanceModifier.fillMaxWidth().padding(horizontal = 4.dp))
+    Column(GlanceModifier.fillMaxSize().padding(start = 6.dp, end = 6.dp, top = 10.dp, bottom = 6.dp)) {
+        Title(s, 14, 2, GlanceModifier.fillMaxWidth().padding(horizontal = 6.dp))
         Text(
             "${s.source} · 第 ${s.index + 1} 首", maxLines = 1,
-            style = TextStyle(color = cp(WhiteSoft), fontSize = 11.sp), modifier = GlanceModifier.padding(start = 4.dp, end = 4.dp, top = 4.dp),
+            style = TextStyle(color = cp(WhiteSoft), fontSize = 10.sp), modifier = GlanceModifier.padding(start = 6.dp, end = 6.dp, top = 2.dp),
         )
         Spacer(GlanceModifier.defaultWeight())
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.defaultWeight(), 24)
-            PlayButton(s, 46)
-            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.defaultWeight(), 24)
+            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.defaultWeight(), 24, 40)
+            PlayButton(s, 40)
+            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.defaultWeight(), 24, 40)
         }
-        Spacer(GlanceModifier.height(6.dp))
+        Spacer(GlanceModifier.height(4.dp))
+        // 三格平分寬度：小工具的實際寬度因桌面而異，用固定寬度相加會超出邊界
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Round(R.drawable.ic_w_playlist, "切換播放清單：${s.source}", actionStartActivity<WidgetPickerActivity>(), 40)
-            Spacer(GlanceModifier.defaultWeight())
-            ModeButton(s, 40)
-            Spacer(GlanceModifier.defaultWeight())
-            SpeedButton(s, 46, 40)
+            Slot { Round(R.drawable.ic_w_playlist, "切換播放清單：${s.source}", actionStartActivity<WidgetPickerActivity>(), 32) }
+            Slot { ModeButton(s, 32) }
+            Slot { SpeedChip(s, GlanceModifier.fillMaxWidth().height(32.dp), 32, 11) }
         }
     }
+}
+
+@Composable
+private fun RowScope.Slot(content: @Composable () -> Unit) {
+    Box(GlanceModifier.defaultWeight().padding(horizontal = 2.dp), contentAlignment = Alignment.Center) { content() }
 }
 
 /** 4×2：上排換清單、模式、倍速、睡眠、面板；中間歌名、時間、進度；下排倒退、上下首、播放、快轉 */
@@ -228,7 +232,7 @@ private fun Full(s: WidgetState) {
     val sleepLeft = s.sleepEndsAt - System.currentTimeMillis()
     Column(GlanceModifier.fillMaxSize().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp)) {
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            ListChip(s, 92)
+            ListChip(s, 80)
             Spacer(GlanceModifier.defaultWeight())
             ModeButton(s, 38)
             Spacer(GlanceModifier.width(5.dp))
@@ -284,8 +288,8 @@ private fun PlayButton(s: WidgetState, size: Int) {
 }
 
 @Composable
-private fun Icon(icon: Int, label: String, action: Action, modifier: GlanceModifier = GlanceModifier.width(40.dp), iconSize: Int = 22) {
-    Box(modifier.height(44.dp).clickable(action), contentAlignment = Alignment.Center) {
+private fun Icon(icon: Int, label: String, action: Action, modifier: GlanceModifier = GlanceModifier.width(40.dp), iconSize: Int = 22, height: Int = 44) {
+    Box(modifier.height(height.dp).clickable(action), contentAlignment = Alignment.Center) {
         Image(ImageProvider(icon), contentDescription = label, colorFilter = ColorFilter.tint(cp(White)), modifier = GlanceModifier.size(iconSize.dp))
     }
 }
@@ -321,11 +325,14 @@ private fun ModeButton(s: WidgetState, size: Int) {
 }
 
 @Composable
-private fun SpeedButton(s: WidgetState, width: Int, height: Int) {
+private fun SpeedButton(s: WidgetState, width: Int, height: Int) = SpeedChip(s, GlanceModifier.width(width.dp).height(height.dp), height, 12)
+
+@Composable
+private fun SpeedChip(s: WidgetState, modifier: GlanceModifier, height: Int, fontSize: Int) {
     Box(
-        GlanceModifier.width(width.dp).height(height.dp).cornerRadius((height / 2).dp).background(cp(ChipBg)).clickable(actionRunCallback<SpeedAction>()),
+        modifier.cornerRadius((height / 2).dp).background(cp(ChipBg)).clickable(actionRunCallback<SpeedAction>()),
         contentAlignment = Alignment.Center,
-    ) { Text(Speed.label(s.speed), maxLines = 1, style = TextStyle(color = cp(White), fontSize = 12.sp, fontWeight = FontWeight.Medium)) }
+    ) { Text(Speed.label(s.speed), maxLines = 1, style = TextStyle(color = cp(White), fontSize = fontSize.sp, fontWeight = FontWeight.Medium)) }
 }
 
 @Composable

@@ -49,6 +49,10 @@ object LocalLogic {
         createdAt = Instant.ofEpochMilli(e.modifiedMs), localUri = e.uri, localFolder = e.folderUri,
     )
 
+    /** 合併掃描結果：同一首以 found 為準；已經移除的資料夾不留（掃描途中移除也一樣） */
+    fun merge(found: List<LocalEntry>, rest: Collection<LocalEntry>, folders: Set<String>): List<LocalEntry> =
+        (found + rest).distinctBy { it.id }.filter { it.folderUri in folders }
+
     fun toJson(folders: List<LocalFolder>, entries: List<LocalEntry>): String = JSONObject()
         .put("folders", JSONArray().apply { folders.forEach { put(JSONObject().put("uri", it.uri).put("name", it.name)) } })
         .put("entries", JSONArray().apply {
