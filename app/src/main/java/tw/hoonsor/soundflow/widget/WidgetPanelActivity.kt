@@ -1,5 +1,6 @@
 package tw.hoonsor.soundflow.widget
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -96,6 +97,7 @@ class WidgetPanelActivity : ComponentActivity() {
         val context = LocalContext.current
         val source = remember(ui.currentId) { WidgetState.load(context).source }
         val (_, choices) = rememberWidgetChoices()
+        val localFolders by Graph.local.state.collectAsState()
         val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         var dragSpeed by remember(ui.speed) { mutableFloatStateOf(ui.speed) }
         Column(
@@ -135,6 +137,10 @@ class WidgetPanelActivity : ComponentActivity() {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 choices.filter { it.second.isNotEmpty() }.forEach { (name, tracks) ->
                     Pick(name, selected = name == source, modifier = Modifier) { Graph.player.playAll(tracks, shuffle = null, source = name); finish() }
+                }
+                if (localFolders.folders.isNotEmpty()) Pick("本機資料夾 ›", selected = false, modifier = Modifier) {
+                    startActivity(Intent(this@WidgetPanelActivity, WidgetPickerActivity::class.java).putExtra(WidgetPickerActivity.EXTRA_FOLDERS, true))
+                    finish()
                 }
             }
         }

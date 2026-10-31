@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -19,7 +20,7 @@ import java.util.concurrent.TimeUnit
  * - <id>.jpg：YouTube 封面、本機音檔內嵌的封面
  * - <id>.found.jpg：幫本機音檔找到的封面（優先顯示；刪掉就回到原狀，所以隨時可復原）
  */
-class CoverStore(context: Context) {
+class CoverStore(private val context: Context) {
     private val dir = File(context.filesDir, "covers").apply { mkdirs() }
     private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
     private val _version = MutableStateFlow(0L)
@@ -53,6 +54,30 @@ class CoverStore(context: Context) {
         val ok = save(found(id), fetch(url))
         if (ok) bump()
         return ok
+    }
+
+    /** 套用手機裡的圖片或別的 App 分享來的圖片；無法解碼回 false，原本的狀態不變 */
+    suspend fun saveFoundBytes(id: String, bytes: ByteArray): Boolean {
+        val ok = save(found(id), bytes)
+        if (ok) bump()
+        return ok
+    }
+
+    /** 讀 content:// 圖片；太大就放棄，不要吃光記憶體 */
+    suspend fun read(uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
+        runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val out = ByteArrayOutputStream()
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    out.write(buffer, 0, n)
+                    if (out.size() > MAX_IMAGE) return@runCatching null
+                }
+                out.toByteArray()
+            }
+        }.getOrNull()
     }
 
     fun removeFound(ids: Collection<String>) {
@@ -95,6 +120,7 @@ class CoverStore(context: Context) {
     companion object {
         private const val MAX_WIDTH = 640
         private const val MAX_DOWNLOAD = 8_000_000L
+        private const val MAX_IMAGE = 30_000_000
     }
 }
 

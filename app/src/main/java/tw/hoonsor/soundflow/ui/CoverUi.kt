@@ -1,6 +1,11 @@
 package tw.hoonsor.soundflow.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.util.LruCache
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,14 +43,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tw.hoonsor.soundflow.Graph
 import tw.hoonsor.soundflow.data.CoverBitmaps
+import tw.hoonsor.soundflow.data.CoverLogic
 import tw.hoonsor.soundflow.data.CoverResult
 import tw.hoonsor.soundflow.data.Track
 import tw.hoonsor.soundflow.ui.theme.Sf
@@ -92,17 +100,37 @@ fun CoverSearchSheet(track: Track, onDismiss: () -> Unit, onDone: (String) -> Un
     var results by remember { mutableStateOf<List<CoverResult>?>(null) }
     var searching by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
+    var job by remember { mutableStateOf<Job?>(null) }
+    val context = LocalContext.current
     val hasFound = remember { Graph.covers.hasFound(track.id) }
 
     fun search() {
+        val q = query.trim()
         searching = true; failed = false
-        scope.launch {
-            val r = Graph.coverSearch.search(query.trim())
+        job?.cancel()
+        job = scope.launch {
+            val r = Graph.coverSearch.searchWide(q)
             failed = r == null
             results = r
             searching = false
+            val more = Graph.coverSearch.searchMusicBrainz(q)
+            if (more.isNotEmpty()) results = (results.orEmpty() + more).distinctBy { it.imageUrl }
         }
     }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            onDismiss()
+            Graph.appScope.launch {
+                val ok = Graph.covers.read(uri)?.let { Graph.covers.saveFoundBytes(track.id, it) } == true
+                onDone(if (ok) "已加上封面" else "這張圖片無法使用")
+            }
+        }
+    }
+    // 從瀏覽器分享圖片回來、設好封面後，這個面板就不用留著了
+    val version by Graph.covers.version.collectAsState()
+    val coverAtOpen = remember { Graph.covers.fileFor(track.id)?.lastModified() }
+    LaunchedEffect(version) { if (Graph.covers.fileFor(track.id)?.lastModified() != coverAtOpen) onDismiss() }
+
     // 標籤完整的音檔直接查；只有檔名的（可能是錄音）等倬看過關鍵字才送出
     LaunchedEffect(Unit) { if (Graph.local.entry(track.id)?.tagged == true) search() }
 
@@ -112,9 +140,20 @@ fun CoverSearchSheet(track: Track, onDismiss: () -> Unit, onDone: (String) -> Un
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("幫這首找封面", style = SfType.rowTitle, color = c.text)
-            Text("只會把下面的文字送去 Apple 與 Deezer 查詢，音檔不會上傳。", style = SfType.body, color = c.muted)
+            Text("搜尋時只把下面的文字送去 Apple、Deezer 與 MusicBrainz，音檔不會上傳。", style = SfType.body, color = c.muted)
             SfTextField(query, { query = it.take(100) }, "歌手 歌名")
             SfButton(if (searching) "搜尋中…" else "搜尋", primary = true, enabled = !searching && query.isNotBlank(), onClick = { search() }, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SfButton("到 Google 找圖", primary = false, enabled = query.isNotBlank(), modifier = Modifier.weight(1f), onClick = {
+                    Graph.coverSearch.setPending(track)
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CoverLogic.googleImagesUrl(query.trim())))) }
+                        .onFailure { onDone("手機上找不到瀏覽器") }
+                })
+                SfButton("從手機選圖", primary = false, modifier = Modifier.weight(1f), onClick = {
+                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                })
+            }
+            Text("Google：在圖片上長按 → 分享 → 選 SoundFlow 封面。沒有分享選項就先下載，再按「從手機選圖」。", style = SfType.meta, color = c.muted)
             if (failed) Text("連不上搜尋服務，請確認網路後再試一次。", style = SfType.body, color = c.danger)
             results?.let { list ->
                 if (list.isEmpty()) Text("沒有找到，試試改短一點的關鍵字。", style = SfType.body, color = c.muted)

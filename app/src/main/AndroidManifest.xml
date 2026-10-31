@@ -51,6 +51,21 @@
             </intent-filter>
         </activity>
 
+        <!-- 接收瀏覽器分享的圖片，設為本機音檔的封面（F57） -->
+        <activity
+            android:name=".share.CoverShareActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/cover_share_label"
+            android:taskAffinity=""
+            android:theme="@style/Theme.SoundFlow.Invisible">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
         <!-- 桌面小工具（Glance）與它的「換清單」小視窗 -->
         <receiver
             android:name=".widget.SoundFlowWidgetReceiver"

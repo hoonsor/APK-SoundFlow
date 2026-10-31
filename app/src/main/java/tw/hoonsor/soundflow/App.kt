@@ -59,7 +59,7 @@ object Graph {
         covers = CoverStore(app)
         tracks = TrackRepository(app, supabase, auth, onRefreshed = { list -> appScope.launch { covers.prefetch(list) } })
         local = LocalRepository(app, tracks, covers, appScope)
-        coverSearch = CoverSearchRepository(covers, local, appScope)
+        coverSearch = CoverSearchRepository(app, covers, local, appScope)
         progress = ProgressRepository(app)
         jobs = JobRepository(app, supabase, auth)
         library = LibraryRepository(app, supabase, auth)

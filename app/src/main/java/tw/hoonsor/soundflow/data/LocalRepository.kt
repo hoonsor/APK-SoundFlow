@@ -128,14 +128,15 @@ class LocalRepository(
 
     private suspend fun walk(folder: LocalFolder, old: Map<String, LocalEntry>, out: MutableList<LocalEntry>) {
         val tree = Uri.parse(folder.uri)
-        val pending = ArrayDeque(listOf(DocumentsContract.getTreeDocumentId(tree)))
+        val pending = ArrayDeque(listOf(DocumentsContract.getTreeDocumentId(tree) to ""))
         val cols = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
             DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_LAST_MODIFIED, DocumentsContract.Document.COLUMN_SIZE,
         )
         var flushedAt = System.currentTimeMillis()
         while (pending.isNotEmpty()) {
-            val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, pending.removeFirst())
+            val (parent, dir) = pending.removeFirst()
+            val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parent)
             val rows = mutableListOf<Array<Any?>>()
             context.contentResolver.query(children, cols, null, null, null)?.use { c ->
                 while (c.moveToNext()) rows += arrayOf(c.getString(0), c.getString(1), c.getString(2), c.getLong(3), c.getLong(4))
@@ -144,14 +145,14 @@ class LocalRepository(
                 val docId = r[0] as String
                 val name = r[1] as? String ?: return@forEach
                 val mime = r[2] as? String
-                if (mime == DocumentsContract.Document.MIME_TYPE_DIR) { pending += docId; return@forEach }
+                if (mime == DocumentsContract.Document.MIME_TYPE_DIR) { pending += docId to LocalLogic.childDir(dir, name); return@forEach }
                 if (!LocalLogic.isAudio(name, mime)) return@forEach
                 val uri = DocumentsContract.buildDocumentUriUsingTree(tree, docId).toString()
                 val id = LocalLogic.trackId(uri)
                 val modified = r[3] as Long
                 val size = r[4] as Long
-                val same = old[id]?.takeIf { it.modifiedMs == modified && it.size == size }
-                out += same ?: readTags(id, uri, folder.uri, name, modified, size)
+                val same = old[id]?.takeIf { it.modifiedMs == modified && it.size == size }?.copy(dir = dir)   // 舊索引沒有 dir：補上就好，不必重讀標籤
+                out += same ?: readTags(id, uri, folder.uri, name, modified, size).copy(dir = dir)
                 _state.update { it.copy(scanned = out.size) }
                 if (same == null && System.currentTimeMillis() - flushedAt > FLUSH_MS) {
                     flush(out, old)

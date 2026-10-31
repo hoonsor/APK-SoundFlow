@@ -7,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tw.hoonsor.soundflow.data.CoverLogic
 import tw.hoonsor.soundflow.data.CoverResult
+import tw.hoonsor.soundflow.data.LocalDir
 import tw.hoonsor.soundflow.data.LocalEntry
 import tw.hoonsor.soundflow.data.LocalFolder
 import tw.hoonsor.soundflow.data.LocalLogic
@@ -42,6 +43,60 @@ class LocalLogicTest {
         val gone = entry.copy(id = "local:3", folderUri = "content://tree/removed")
         val all = LocalLogic.merge(listOf(scanned), listOf(entry, other, gone), setOf(entry.folderUri))
         assertEquals(listOf(scanned, other), all)
+    }
+
+    private fun track(id: String, dir: String) =
+        LocalLogic.toTrack(entry.copy(id = id, dir = dir), "音樂")
+
+    @Test fun folderLevels() {
+        val root = entry.folderUri
+        val tracks = listOf(track("a", ""), track("b", "第一季"), track("c", "第一季/外傳"), track("d", "第二季"))
+        assertEquals(listOf("a"), LocalLogic.inDir(tracks, root, "").map { it.id })
+        assertEquals(listOf("b"), LocalLogic.inDir(tracks, root, "第一季").map { it.id })
+        assertEquals(listOf("b", "c"), LocalLogic.underDir(tracks, root, "第一季").map { it.id })
+        assertEquals(4, LocalLogic.underDir(tracks, root, "").size)
+        assertEquals(emptyList<String>(), LocalLogic.inDir(tracks, "content://tree/other", "").map { it.id })
+    }
+
+    @Test fun similarFolderNamesAreNotMixed() {
+        val tracks = listOf(track("a", "第一季"), track("b", "第一季番外"))
+        assertEquals(listOf("a"), LocalLogic.underDir(tracks, entry.folderUri, "第一季").map { it.id })
+    }
+
+    @Test fun subFoldersOfALevel() {
+        val root = entry.folderUri
+        val tracks = listOf(track("a", ""), track("b", "第一季"), track("c", "第一季/外傳"), track("d", "第二季"))
+        assertEquals(listOf(LocalDir("第一季", "第一季", 2), LocalDir("第二季", "第二季", 1)), LocalLogic.subDirs(tracks, root, ""))
+        assertEquals(listOf(LocalDir("外傳", "第一季/外傳", 1)), LocalLogic.subDirs(tracks, root, "第一季"))
+        assertTrue(LocalLogic.subDirs(tracks, root, "第二季").isEmpty())
+    }
+
+    @Test fun dirPaths() {
+        assertEquals("第一季", LocalLogic.childDir("", "第一季"))
+        assertEquals("第一季/外傳", LocalLogic.childDir("第一季", "外傳"))
+        assertEquals("第一季", LocalLogic.parentDir("第一季/外傳"))
+        assertEquals("", LocalLogic.parentDir("第一季"))
+        assertEquals("外傳", LocalLogic.dirName("第一季/外傳"))
+    }
+
+    @Test fun oldIndexWithoutDirStillLoads() {
+        val json = LocalLogic.toJson(listOf(LocalFolder(entry.folderUri, "音樂")), listOf(entry.copy(dir = "第一季")))
+        assertEquals("第一季", LocalLogic.fromJson(json).second.single().dir)
+        assertEquals("", LocalLogic.fromJson(json.replace(Regex("\"dir\":\"第一季\",?"), "")).second.single().dir)
+    }
+
+    @Test fun musicBrainzKeepsOneReleasePerAlbum() {
+        val raw = """{"releases":[
+            {"id":"r1","title":"STRAY SHEEP","release-group":{"id":"g1"},"artist-credit":[{"name":"米津玄師"}]},
+            {"id":"r2","title":"STRAY SHEEP","release-group":{"id":"g1"},"artist-credit":[{"name":"米津玄師"}]},
+            {"id":"r3","title":"BOOTLEG","release-group":{"id":"g2"},"artist-credit":[{"name":"米津玄師"}]}]}"""
+        val list = CoverLogic.parseMusicBrainz(raw)
+        assertEquals(listOf("r1", "r3"), list.map { it.imageUrl.substringAfter("release/").substringBefore('/') })
+        assertEquals("米津玄師", list.first().artist)
+    }
+
+    @Test fun googleImagesUrlEncodesQuery() {
+        assertEquals("https://www.google.com/search?udm=2&q=%E7%B1%B3%E6%B4%A5+IRIS", CoverLogic.googleImagesUrl("米津 IRIS"))
     }
 
     @Test fun trackRoundTripsThroughSnapshotJson() {

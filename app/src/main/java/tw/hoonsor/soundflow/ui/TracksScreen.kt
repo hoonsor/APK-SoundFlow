@@ -73,6 +73,7 @@ import tw.hoonsor.soundflow.data.Label
 import tw.hoonsor.soundflow.data.LibraryLogic
 import tw.hoonsor.soundflow.data.ListFilter
 import tw.hoonsor.soundflow.data.LocalFolder
+import tw.hoonsor.soundflow.data.LocalLogic
 import tw.hoonsor.soundflow.data.SettingsRepository
 import tw.hoonsor.soundflow.data.SfFormat
 import tw.hoonsor.soundflow.data.SortKey
@@ -115,6 +116,7 @@ fun TracksScreen() {
     val snackbar = remember { SnackbarHostState() }
     var selection by remember { mutableStateOf(setOf<String>()) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
+    var shown by remember { mutableStateOf(emptyList<Track>()) }
 
     LaunchedEffect(kind, signedIn) {
         selection = emptySet()
@@ -135,7 +137,7 @@ fun TracksScreen() {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (selection.isNotEmpty()) {
-                SelectionBar(selection.size, onAll = { selection = state.items.map { it.id }.toSet() }, onCancel = { selection = emptySet() })
+                SelectionBar(selection.size, onAll = { selection = (if (kind == TrackKind.LOCAL) shown else state.items).map { it.id }.toSet() }, onCancel = { selection = emptySet() })
             } else {
                 Header(state, signedIn || kind == TrackKind.LOCAL)
             }
@@ -146,6 +148,7 @@ fun TracksScreen() {
                     onSelectionChange = { selection = it },
                     onSheet = { sheet = it },
                     onToast = { toast(it) },
+                    onShown = { shown = it },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -187,7 +190,10 @@ fun TracksScreen() {
             // 本機音檔不在雲端：不能進雲端同步的清單與標籤，檔案也由手機管理
             TrackActionsSheet(
                 s.track, played, onDismiss = { sheet = null },
-                onPlay = { Graph.player.playOrToggle(state.items, state.items.indexOf(s.track)) },
+                onPlay = {
+                    val list = if (s.track in shown) shown else state.items
+                    Graph.player.playOrToggle(list, list.indexOf(s.track))
+                },
                 onPlaylist = if (cloud) ({ sheet = Sheet.Playlist(listOf(s.track.id)) }) else null,
                 onLabels = if (cloud) ({ sheet = Sheet.Labels(setOf(s.track.id)) }) else null,
                 onTogglePlayed = { scope.launch { Graph.progress.markPlayed(s.track.id, !played) } },
@@ -333,11 +339,13 @@ private fun TrackBrowser(
     onSelectionChange: (Set<String>) -> Unit,
     onSheet: (Sheet) -> Unit,
     onToast: (String) -> Unit,
+    onShown: (List<Track>) -> Unit,
     modifier: Modifier,
 ) {
     val isLocal = kind == TrackKind.LOCAL
     val localState by Graph.local.state.collectAsState()
     var folder by rememberSaveable { mutableStateOf<String?>(null) }
+    var dir by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val today = LocalDate.now(ZoneId.of("Asia/Taipei"))
@@ -350,11 +358,27 @@ private fun TrackBrowser(
     var collapsed by remember(kind) { mutableStateOf(setOf<String>()) }
     var sortMenu by remember { mutableStateOf(false) }
 
-    val base = if (isLocal && folder != null) state.items.filter { it.localFolder == folder } else state.items
+    // 只匯入一個資料夾時直接進到它裡面，不多一層「全部」
+    val roots = localState.folders
+    val root = folder?.takeIf { f -> roots.any { it.uri == f } } ?: roots.singleOrNull()?.uri
+    val base = when {
+        !isLocal -> state.items
+        root == null -> emptyList()
+        else -> LocalLogic.inDir(state.items, root, dir)
+    }
+    val subs = if (isLocal && root != null) LocalLogic.subDirs(state.items, root, dir) else emptyList()
     val visible = LibraryLogic.sort(LibraryLogic.filter(base, filter, labelFilter, lib.trackLabels, progress), prefs.sort, progress)
+    LaunchedEffect(visible) { onShown(visible) }
     val groups = if (prefs.groupByLabel) LibraryLogic.group(visible, lib.labels, lib.trackLabels) else null
     val labelsById = lib.labels.associateBy { it.id }
     val selecting = selection.isNotEmpty()
+    val levelName = if (dir.isNotEmpty()) LocalLogic.dirName(dir) else roots.firstOrNull { it.uri == root }?.name.orEmpty()
+
+    fun open(r: String?, d: String) { folder = r; dir = d }
+    fun playTree(name: String, tracks: List<Track>) = Graph.player.playAll(LibraryLogic.sort(tracks, prefs.sort, progress), shuffle = null, source = "本機 · $name")
+    BackHandler(enabled = isLocal && !selecting && (dir.isNotEmpty() || (folder != null && roots.size > 1))) {
+        if (dir.isNotEmpty()) dir = LocalLogic.parentDir(dir) else folder = null
+    }
 
     // Android 13+ 要通知權限，通知列才看得到播放控制；拒絕也照樣能播
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -362,7 +386,7 @@ private fun TrackBrowser(
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        Graph.player.playOrToggle(visible, visible.indexOf(t))
+        Graph.player.playOrToggle(visible, visible.indexOf(t), if (isLocal) "本機 · $levelName" else "")
     }
     fun tap(t: Track) {
         if (selecting) onSelectionChange(if (t.id in selection) selection - t.id else selection + t.id) else play(t)
@@ -375,7 +399,12 @@ private fun TrackBrowser(
         return
     }
     Column(modifier) {
-        if (isLocal) LocalFolderBar(localState.folders, folder, base, { folder = it }, onToast) { onSheet(Sheet.CoverBatch(base)) }
+        if (isLocal) LocalFolderBar(
+            roots, root, dir, base, ::open, onToast,
+            onPlayAll = if (root == null) ({ playTree("全部", state.items) }) else null,
+            onPlayRoot = { f -> playTree(f.name, LocalLogic.underDir(state.items, f.uri, "")) },
+            onBatch = { onSheet(Sheet.CoverBatch(base)) },
+        )
         // 篩選：收聽狀態＋顏色標籤
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
@@ -432,6 +461,16 @@ private fun TrackBrowser(
                 localState.error?.takeIf { isLocal }?.let { msg -> item(span = { GridItemSpan(maxLineSpan) }) { ErrorBanner(msg) { scope.launch { Graph.local.rescan() } } } }
                 state.error?.let { msg -> item(span = { GridItemSpan(maxLineSpan) }) { ErrorBanner(msg) { scope.launch { Graph.tracks.refresh(kind) } } } }
                 lib.error?.let { msg -> item(span = { GridItemSpan(maxLineSpan) }) { ErrorBanner(msg) { Graph.library.clearError(); scope.launch { Graph.library.refresh() } } } }
+                if (isLocal && root == null) roots.forEach { f ->
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "folder/${f.uri}") {
+                        FolderRow(f.name, state.items.count { it.localFolder == f.uri }, f, { open(f.uri, "") }, { playTree(f.name, LocalLogic.underDir(state.items, f.uri, "")) }, onToast) { open(null, "") }
+                    }
+                }
+                if (root != null) subs.forEach { d ->
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "dir/${d.path}") {
+                        FolderRow(d.name, d.count, null, { open(root, d.path) }, { playTree(d.name, LocalLogic.underDir(state.items, root, d.path)) }, onToast) {}
+                    }
+                }
                 if (state.items.isEmpty() && !state.loading && state.error == null) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         if (isLocal) {
@@ -442,7 +481,7 @@ private fun TrackBrowser(
                             EmptyCard("在 YouTube 按「分享」送過來", "影片下方點「分享」→ 選「SoundFlow 轉成音檔」，N100 轉好後（通常幾分鐘）出現在這裡。")
                         }
                     }
-                } else if (visible.isEmpty() && state.items.isNotEmpty()) {
+                } else if (visible.isEmpty() && state.items.isNotEmpty() && !(isLocal && (root == null || subs.isNotEmpty()))) {
                     item(span = { GridItemSpan(maxLineSpan) }) { EmptyCard("沒有符合的音檔", "換一個篩選條件或顏色標籤試試。") }
                 }
 
@@ -497,11 +536,12 @@ private fun rememberFolderPicker(onToast: (String) -> Unit): () -> Unit {
     return { launcher.launch(null) }
 }
 
-/** 資料夾切換＋再匯入＋找封面；長按資料夾可重新掃描或移除 */
+/** 目前位置（點任一層跳回去）＋再匯入＋找封面；長按匯入的資料夾可重新掃描或移除 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LocalFolderBar(
-    folders: List<LocalFolder>, selected: String?, shown: List<Track>, onSelect: (String?) -> Unit, onToast: (String) -> Unit, onBatch: () -> Unit,
+    folders: List<LocalFolder>, root: String?, dir: String, shown: List<Track>, onOpen: (String?, String) -> Unit, onToast: (String) -> Unit,
+    onPlayAll: (() -> Unit)?, onPlayRoot: (LocalFolder) -> Unit, onBatch: () -> Unit,
 ) {
     val c = Sf.colors
     val pick = rememberFolderPicker(onToast)
@@ -509,39 +549,79 @@ private fun LocalFolderBar(
     val version by Graph.covers.version.collectAsState()
     val batch by Graph.coverSearch.batch.collectAsState()
     val missing = remember(shown, version) { shown.count { Graph.covers.fileFor(it.id) == null } }
-    var menu by remember { mutableStateOf<String?>(null) }
+    val current = folders.firstOrNull { it.uri == root }
+    val segments = if (dir.isEmpty()) emptyList() else dir.split('/')
+    var menu by remember { mutableStateOf(false) }
     Column {
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
         ) {
-            Chip("全部", selected = selected == null) { onSelect(null) }
-            folders.forEach { f ->
-                val on = f.uri == selected
+            if (folders.size > 1) Chip("全部", selected = root == null) { onOpen(null, "") }
+            if (current != null) {
+                if (folders.size > 1) Text("›", color = c.muted)
+                val on = segments.isEmpty()
                 val shape = RoundedCornerShape(8.dp)
                 Box {
                     Box(
                         Modifier.height(32.dp).clip(shape).background(if (on) c.text else Color.Transparent).border(1.dp, if (on) c.text else c.border, shape)
-                            .combinedClickable(onLongClickLabel = "資料夾動作", onClick = { onSelect(if (on) null else f.uri) }, onLongClick = { menu = f.uri })
+                            .combinedClickable(onLongClickLabel = "資料夾動作", onClick = { onOpen(current.uri, "") }, onLongClick = { menu = true })
                             .padding(horizontal = 11.dp),
                         contentAlignment = Alignment.Center,
-                    ) { Text(f.name, style = SfType.body, color = if (on) c.bg else c.muted, maxLines = 1) }
-                    DropdownMenu(expanded = menu == f.uri, onDismissRequest = { menu = null }, containerColor = c.surface2) {
-                        DropdownMenuItem(text = { Text("重新掃描", color = c.text) }, onClick = { menu = null; Graph.local.rescan() })
-                        DropdownMenuItem(text = { Text("移除資料夾（不刪手機檔案）", color = c.danger) }, onClick = {
-                            menu = null
-                            if (on) onSelect(null)
-                            Graph.appScope.launch { Graph.local.removeFolder(f.uri); onToast("已移除「${f.name}」，手機裡的檔案沒有動") }
-                        })
-                    }
+                    ) { Text(current.name, style = SfType.body, color = if (on) c.bg else c.muted, maxLines = 1) }
+                    FolderMenu(menu, { menu = false }, current, { onPlayRoot(current) }, onToast) { onOpen(null, "") }
+                }
+                segments.forEachIndexed { i, name ->
+                    Text("›", color = c.muted)
+                    Chip(name, selected = i == segments.lastIndex) { onOpen(current.uri, segments.take(i + 1).joinToString("/")) }
                 }
             }
             Chip("＋ 匯入", selected = false, onClick = pick)
+            if (onPlayAll != null) Chip("全部播放", selected = false, onClick = onPlayAll)
             val b = batch
             if (b?.running == true) Chip("找封面中 ${b.done}/${b.total}", selected = false, onClick = onBatch)
             else if (missing > 0 || b != null) Chip(if (b != null) "找封面結果" else "找封面（$missing）", selected = false, onClick = onBatch)
         }
-        Text(if (local.scanning) "掃描中…（${local.scanned} 首），可以離開這頁" else "長按資料夾可重新掃描或移除。", style = SfType.meta, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 2.dp))
+        Text(if (local.scanning) "掃描中…（${local.scanned} 首），可以離開這頁" else "長按資料夾可播放整個資料夾、重新掃描或移除。", style = SfType.meta, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 2.dp))
+    }
+}
+
+/** 資料夾的長按選單；root 不是 null 表示這是匯入的資料夾，才有重新掃描與移除 */
+@Composable
+private fun FolderMenu(expanded: Boolean, onDismiss: () -> Unit, root: LocalFolder?, onPlay: () -> Unit, onToast: (String) -> Unit, onRemoved: () -> Unit) {
+    val c = Sf.colors
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = c.surface2) {
+        DropdownMenuItem(text = { Text("播放此資料夾（含子資料夾）", color = c.text) }, onClick = { onDismiss(); onPlay() })
+        if (root != null) {
+            DropdownMenuItem(text = { Text("重新掃描", color = c.text) }, onClick = { onDismiss(); Graph.local.rescan() })
+            DropdownMenuItem(text = { Text("移除資料夾（不刪手機檔案）", color = c.danger) }, onClick = {
+                onDismiss()
+                onRemoved()
+                Graph.appScope.launch { Graph.local.removeFolder(root.uri); onToast("已移除「${root.name}」，手機裡的檔案沒有動") }
+            })
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FolderRow(name: String, count: Int, root: LocalFolder?, onOpen: () -> Unit, onPlay: () -> Unit, onToast: (String) -> Unit, onRemoved: () -> Unit) {
+    val c = Sf.colors
+    val shape = RoundedCornerShape(12.dp)
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(shape).background(c.surface).border(1.dp, c.border, shape)
+                .combinedClickable(onClickLabel = "打開資料夾", onLongClickLabel = "資料夾動作", onClick = onOpen, onLongClick = { menu = true })
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(SfIcons.Folder, contentDescription = null, tint = c.accentText, modifier = Modifier.size(22.dp))
+            Text(name, style = SfType.rowTitle, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text("$count 首", style = SfType.number, color = c.muted)
+            Text("›", color = c.muted)
+        }
+        FolderMenu(menu, { menu = false }, root, onPlay, onToast, onRemoved)
     }
 }
 

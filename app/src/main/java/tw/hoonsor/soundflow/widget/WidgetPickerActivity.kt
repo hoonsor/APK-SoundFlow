@@ -2,6 +2,7 @@ package tw.hoonsor.soundflow.widget
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,6 +38,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import tw.hoonsor.soundflow.Graph
 import tw.hoonsor.soundflow.data.LibraryLogic
+import tw.hoonsor.soundflow.data.LocalLogic
+import tw.hoonsor.soundflow.data.SettingsRepository
 import tw.hoonsor.soundflow.data.SfFormat
 import tw.hoonsor.soundflow.data.Track
 import tw.hoonsor.soundflow.data.TrackKind
@@ -60,7 +63,6 @@ internal fun rememberWidgetChoices(): Pair<Boolean, List<Pair<String, List<Track
     val pod by Graph.tracks.state(TrackKind.PODCAST).collectAsState()
     val yt by Graph.tracks.state(TrackKind.YOUTUBE).collectAsState()
     val local by Graph.tracks.state(TrackKind.LOCAL).collectAsState()
-    val folders by Graph.local.state.collectAsState()
     val lib by Graph.library.state.collectAsState()
     val progress by Graph.progress.state.collectAsState()
     val all = pod.items + yt.items
@@ -73,9 +75,66 @@ internal fun rememberWidgetChoices(): Pair<Boolean, List<Pair<String, List<Track
         "Podcast 全部" to pod.items,
         "YouTube 全部" to yt.items,
     ) + lib.playlists.map { p -> p.name to p.trackIds.mapNotNull { byId[it] } } +
-        (if (local.items.isNotEmpty()) listOf("本機全部" to local.items) else emptyList()) +
-        folders.folders.map { f -> "本機 · ${f.name}" to local.items.filter { it.localFolder == f.uri } }
+        (if (local.items.isNotEmpty()) listOf("本機全部" to local.items) else emptyList())
     return ready to choices
+}
+
+/** 一層層點進本機資料夾，選一層來播；子資料夾可能很多，不適合攤成一長串（F58） */
+@Composable
+private fun LocalFolderChoices(onClose: () -> Unit, onPick: (String, List<Track>) -> Unit) {
+    val c = Sf.colors
+    val roots by Graph.local.state.collectAsState()
+    val local by Graph.tracks.state(TrackKind.LOCAL).collectAsState()
+    val prefs by Graph.settings.viewPrefs(TrackKind.LOCAL).collectAsState(initial = SettingsRepository.ViewPrefs())
+    val progress by Graph.progress.state.collectAsState()
+    var picked by remember { mutableStateOf<String?>(null) }
+    var dir by remember { mutableStateOf("") }
+    val root = picked ?: roots.folders.singleOrNull()?.uri
+    val rootName = roots.folders.firstOrNull { it.uri == root }?.name.orEmpty()
+    val name = if (dir.isEmpty()) rootName else LocalLogic.dirName(dir)
+    fun up() {
+        when {
+            dir.isNotEmpty() -> dir = LocalLogic.parentDir(dir)
+            picked != null && roots.folders.size > 1 -> picked = null
+            else -> onClose()
+        }
+    }
+    fun play(label: String, tracks: List<Track>) = onPick("本機 · $label", LibraryLogic.sort(tracks, prefs.sort, progress))
+    BackHandler { up() }
+
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClickLabel = "回上一層") { up() }.padding(6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(SfIcons.Back, contentDescription = null, tint = c.text, modifier = Modifier.size(20.dp))
+        Text(if (root == null) "本機資料夾" else name, style = SfType.rowTitle, color = c.text)
+    }
+    if (root == null) {
+        roots.folders.forEach { f -> FolderChoice(f.name, local.items.count { it.localFolder == f.uri }, true) { picked = f.uri; dir = "" } }
+        return
+    }
+    val here = LocalLogic.inDir(local.items, root, dir)
+    val subs = LocalLogic.subDirs(local.items, root, dir)
+    FolderChoice("播放這一層", here.size, false, enabled = here.isNotEmpty()) { play(name, here) }
+    if (subs.isNotEmpty()) {
+        val all = LocalLogic.underDir(local.items, root, dir)
+        FolderChoice("含子資料夾一起播", all.size, false) { play(name, all) }
+        Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).background(c.border).size(1.dp))
+        subs.forEach { d -> FolderChoice(d.name, d.count, true) { dir = d.path } }
+    }
+}
+
+@Composable
+private fun FolderChoice(name: String, count: Int, opens: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+    val c = Sf.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, enabled = enabled, onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(if (opens) SfIcons.Folder else SfIcons.Playlist, contentDescription = null, tint = if (enabled) c.accentText else c.border, modifier = Modifier.size(20.dp))
+        Text(name, style = SfType.rowTitle, color = if (enabled) c.text else c.muted, modifier = Modifier.weight(1f))
+        Text(if (opens) "$count 首 ›" else "$count 首", style = SfType.number, color = c.muted)
+    }
 }
 
 /**
@@ -83,11 +142,18 @@ internal fun rememberWidgetChoices(): Pair<Boolean, List<Pair<String, List<Track
  * 只用手機上的快取（音軌、標籤與清單、進度），沒網路也能選。
  */
 class WidgetPickerActivity : ComponentActivity() {
+    companion object {
+        /** 直接打開本機資料夾（控制面板用） */
+        const val EXTRA_FOLDERS = "folders"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val theme by Graph.settings.theme.collectAsState(initial = SfThemeId.SIGNAL)
             val (ready, choices) = rememberWidgetChoices()
+            val local by Graph.local.state.collectAsState()
+            var browsing by remember { mutableStateOf(intent.getBooleanExtra(EXTRA_FOLDERS, false)) }
 
             SoundFlowTheme(theme) {
                 val c = Sf.colors
@@ -102,6 +168,13 @@ class WidgetPickerActivity : ComponentActivity() {
                             .border(1.dp, c.border, shape).verticalScroll(rememberScrollState()).padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
+                        if (browsing) {
+                            LocalFolderChoices(onClose = { browsing = false }) { name, tracks ->
+                                Graph.player.playAll(tracks, shuffle = null, source = name)
+                                finish()
+                            }
+                            return@Column
+                        }
                         Text("切換播放清單", style = SfType.rowTitle, color = c.text, modifier = Modifier.padding(start = 6.dp, bottom = 6.dp))
                         if (ready && choices.all { it.second.isEmpty() }) Text("手機上還沒有音檔資料，請先打開 SoundFlow 一次。", style = SfType.body, color = c.muted, modifier = Modifier.padding(6.dp))
                         choices.forEachIndexed { i, (name, tracks) ->
@@ -119,6 +192,7 @@ class WidgetPickerActivity : ComponentActivity() {
                                 Text("${tracks.size} 集 · ${SfFormat.total(tracks.sumOf { it.durationSec ?: 0 })}", style = SfType.number, color = c.muted)
                             }
                         }
+                        if (local.folders.isNotEmpty()) FolderChoice("本機資料夾", local.entries.size, true) { browsing = true }
                     }
                 }
             }

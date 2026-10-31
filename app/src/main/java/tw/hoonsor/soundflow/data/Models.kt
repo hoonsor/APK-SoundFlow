@@ -39,6 +39,8 @@ data class Track(
     val localUri: String? = null,
     /** 本機音檔屬於哪個匯入的資料夾（資料夾網址） */
     val localFolder: String? = null,
+    /** 本機音檔在匯入資料夾裡的相對路徑；空字串＝匯入資料夾本身 */
+    val localDir: String? = null,
 )
 
 /** 登入後的工作階段；refresh token 會輪替，每次刷新都要存新的 */
@@ -80,6 +82,7 @@ object SfJson {
             thumbnailUrl = o.str("thumbnail_url"),
             localUri = o.str("local_uri"),
             localFolder = o.str("local_folder"),
+            localDir = o.str("local_dir"),
         )
     }
 
@@ -95,7 +98,8 @@ object SfJson {
                 .put("created_at", t.createdAt.toString())
                 .put("deleted_at", t.deletedAt?.toString() ?: JSONObject.NULL).put("delete_source", t.deleteSource)
                 .put("thumbnail_url", t.thumbnailUrl ?: JSONObject.NULL)
-                .put("local_uri", t.localUri ?: JSONObject.NULL).put("local_folder", t.localFolder ?: JSONObject.NULL))
+                .put("local_uri", t.localUri ?: JSONObject.NULL).put("local_folder", t.localFolder ?: JSONObject.NULL)
+                .put("local_dir", t.localDir ?: JSONObject.NULL))
         }
     }.toString()
 

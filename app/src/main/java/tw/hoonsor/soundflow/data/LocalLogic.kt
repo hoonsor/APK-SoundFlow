@@ -2,6 +2,7 @@ package tw.hoonsor.soundflow.data
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.text.Normalizer
 import java.time.Instant
@@ -9,7 +10,13 @@ import java.time.Instant
 /** 匯入的資料夾 */
 data class LocalFolder(val uri: String, val name: String)
 
-/** 掃描到的一個本機音檔。tagged＝標題與歌手都來自音檔標籤，不是從檔名猜的（批次找封面只處理這種） */
+/** 目前這一層底下的一個子資料夾；count 含更深層的音檔 */
+data class LocalDir(val name: String, val path: String, val count: Int)
+
+/**
+ * 掃描到的一個本機音檔。tagged＝標題與歌手都來自音檔標籤，不是從檔名猜的（批次找封面只處理這種）。
+ * dir＝相對於匯入資料夾的路徑（第一季/外傳），空字串＝匯入資料夾本身。
+ */
 data class LocalEntry(
     val id: String,
     val uri: String,
@@ -21,6 +28,7 @@ data class LocalEntry(
     val modifiedMs: Long,
     val size: Long,
     val tagged: Boolean,
+    val dir: String = "",
 )
 
 /** 本機音檔的純邏輯（JVM 測試涵蓋） */
@@ -46,12 +54,34 @@ object LocalLogic {
     fun toTrack(e: LocalEntry, folderName: String): Track = Track(
         id = e.id, kind = TrackKind.LOCAL, title = e.title, originalTitle = e.title, channel = e.artist ?: folderName,
         sourceUrl = null, durationSec = e.durationSec, tier = "local", storageBucket = null, storagePath = null,
-        createdAt = Instant.ofEpochMilli(e.modifiedMs), localUri = e.uri, localFolder = e.folderUri,
+        createdAt = Instant.ofEpochMilli(e.modifiedMs), localUri = e.uri, localFolder = e.folderUri, localDir = e.dir.ifEmpty { null },
     )
 
     /** 合併掃描結果：同一首以 found 為準；已經移除的資料夾不留（掃描途中移除也一樣） */
     fun merge(found: List<LocalEntry>, rest: Collection<LocalEntry>, folders: Set<String>): List<LocalEntry> =
         (found + rest).distinctBy { it.id }.filter { it.folderUri in folders }
+
+    fun childDir(dir: String, name: String) = if (dir.isEmpty()) name else "$dir/$name"
+    fun parentDir(dir: String) = dir.substringBeforeLast('/', "")
+    fun dirName(dir: String) = dir.substringAfterLast('/')
+
+    /** 只有這一層的音檔，不含子資料夾 */
+    fun inDir(tracks: List<Track>, folder: String, dir: String): List<Track> =
+        tracks.filter { it.localFolder == folder && it.localDir.orEmpty() == dir }
+
+    /** 這一層加上底下所有子資料夾的音檔 */
+    fun underDir(tracks: List<Track>, folder: String, dir: String): List<Track> = tracks.filter {
+        val d = it.localDir.orEmpty()
+        it.localFolder == folder && (dir.isEmpty() || d == dir || d.startsWith("$dir/"))
+    }
+
+    /** 這一層的子資料夾：沒有音檔的資料夾不會出現 */
+    fun subDirs(tracks: List<Track>, folder: String, dir: String): List<LocalDir> {
+        val prefix = if (dir.isEmpty()) "" else "$dir/"
+        return tracks.filter { it.localFolder == folder }.mapNotNull { t -> t.localDir.orEmpty().takeIf { it.startsWith(prefix) && it.length > prefix.length } }
+            .groupingBy { it.removePrefix(prefix).substringBefore('/') }.eachCount()
+            .map { (name, count) -> LocalDir(name, prefix + name, count) }.sortedBy { it.name.lowercase() }
+    }
 
     fun toJson(folders: List<LocalFolder>, entries: List<LocalEntry>): String = JSONObject()
         .put("folders", JSONArray().apply { folders.forEach { put(JSONObject().put("uri", it.uri).put("name", it.name)) } })
@@ -59,7 +89,7 @@ object LocalLogic {
             entries.forEach { e ->
                 put(JSONObject().put("id", e.id).put("uri", e.uri).put("folder", e.folderUri).put("title", e.title)
                     .put("artist", e.artist ?: JSONObject.NULL).put("album", e.album ?: JSONObject.NULL)
-                    .put("duration", e.durationSec ?: JSONObject.NULL).put("modified", e.modifiedMs).put("size", e.size).put("tagged", e.tagged))
+                    .put("duration", e.durationSec ?: JSONObject.NULL).put("modified", e.modifiedMs).put("size", e.size).put("tagged", e.tagged).put("dir", e.dir))
             }
         }).toString()
 
@@ -73,7 +103,7 @@ object LocalLogic {
             LocalEntry(
                 j.getString("id"), j.getString("uri"), j.getString("folder"), j.getString("title"),
                 j.optString("artist").takeIf { !j.isNull("artist") }, j.optString("album").takeIf { !j.isNull("album") },
-                if (j.isNull("duration")) null else j.getInt("duration"), j.optLong("modified"), j.optLong("size"), j.optBoolean("tagged"),
+                if (j.isNull("duration")) null else j.getInt("duration"), j.optLong("modified"), j.optLong("size"), j.optBoolean("tagged"), j.optString("dir"),
             )
         }
         folders to entries
@@ -95,6 +125,9 @@ object CoverLogic {
         }
     }
 
+    fun parseItunesOrEmpty(raw: String) = runCatching { parseItunes(raw) }.getOrDefault(emptyList())
+    fun parseDeezerOrEmpty(raw: String) = runCatching { parseDeezer(raw) }.getOrDefault(emptyList())
+
     fun parseDeezer(raw: String): List<CoverResult> {
         val arr = JSONObject(raw).optJSONArray("data") ?: return emptyList()
         return (0 until arr.length()).mapNotNull { i ->
@@ -104,6 +137,22 @@ object CoverLogic {
             CoverResult(o.optString("title"), o.optJSONObject("artist")?.optString("name").orEmpty(), album.optString("title"), art, "Deezer")
         }
     }
+
+    /** MusicBrainz 只有音樂資料，圖在 Cover Art Archive；同一張專輯的不同版本只留一筆 */
+    fun parseMusicBrainz(raw: String): List<CoverResult> {
+        val arr = JSONObject(raw).optJSONArray("releases") ?: return emptyList()
+        val seen = mutableSetOf<String>()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.getJSONObject(i)
+            val id = o.optString("id").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val group = o.optJSONObject("release-group")?.optString("id").orEmpty().ifEmpty { id }
+            if (!seen.add(group)) return@mapNotNull null
+            val artist = o.optJSONArray("artist-credit")?.optJSONObject(0)?.optString("name").orEmpty()
+            CoverResult(o.optString("title"), artist, o.optString("title"), "https://coverartarchive.org/release/$id/front-500", "MusicBrainz")
+        }
+    }
+
+    fun googleImagesUrl(query: String) = "https://www.google.com/search?udm=2&q=" + URLEncoder.encode(query, "UTF-8")
 
     /** 比對用：全形轉半形、去大小寫、去括號內的版本註記與標點 */
     fun normalize(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFKC).lowercase()
