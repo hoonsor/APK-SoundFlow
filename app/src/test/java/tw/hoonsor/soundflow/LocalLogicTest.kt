@@ -37,6 +37,27 @@ class LocalLogicTest {
         assertEquals("123", LocalLogic.titleFromFileName("123.mp3"))
     }
 
+    private fun split(title: String, artist: String? = null) = LocalLogic.artistTitle(entry.copy(title = title, artist = artist))
+
+    @Test fun artistComesFromFileNameOnlyWithoutTag() {
+        assertEquals("滅火器 Fire EX." to "曾經瘋狂", split("滅火器 Fire EX. - 曾經瘋狂"))
+        assertEquals("Coldplay" to "Yellow", split("Coldplay – Yellow"))
+        assertEquals("周杰倫" to "晴天 - Live", split("晴天 - Live", artist = "周杰倫"))   // 有標籤就照標籤
+    }
+
+    @Test fun ambiguousFileNamesStayWhole() {
+        assertEquals(null to "2026-10-24 會議錄音", split("2026-10-24 會議錄音"))    // 沒有前後空白
+        assertEquals(null to "2026-10-24 - 會議錄音", split("2026-10-24 - 會議錄音"))  // 前段只有數字
+        assertEquals(null to "A - B - C", split("A - B - C"))
+        assertEquals(null to "晴天", split("晴天"))
+    }
+
+    @Test fun trackShowsArtistSplitFromFileName() {
+        val t = LocalLogic.toTrack(entry.copy(title = "滅火器 Fire EX. - 曾經瘋狂", artist = null), "Music")
+        assertEquals("曾經瘋狂", t.title)
+        assertEquals("滅火器 Fire EX.", t.channel)
+    }
+
     @Test fun mergeKeepsScannedVersionAndDropsRemovedFolders() {
         val scanned = entry.copy(title = "新標題")
         val other = entry.copy(id = "local:2")

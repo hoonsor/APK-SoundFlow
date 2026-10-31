@@ -96,8 +96,8 @@ class CoverSearchRepository(
 
     /** 單筆搜尋的預設關鍵字（倬按搜尋前看得到、改得了） */
     fun defaultQuery(t: Track): String {
-        val e = local.entry(t.id)
-        return listOfNotNull(e?.artist, t.title).joinToString(" ")
+        val artist = local.entry(t.id)?.let { LocalLogic.artistTitle(it).first }
+        return listOfNotNull(artist, t.title).joinToString(" ")
     }
 
     fun startBatch(tracks: List<Track>) {

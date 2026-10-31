@@ -30,6 +30,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import tw.hoonsor.soundflow.Graph
@@ -85,6 +86,21 @@ class PlaybackService : MediaSessionService() {
         )
         session = MediaSession.Builder(this, player).setCallback(Callback()).setSessionActivity(openApp).build()
         scope.launch { Graph.progress.load() }
+        scope.launch { Graph.covers.version.collectLatest { delay(COVER_SYNC_MS); syncArtwork() } }
+    }
+
+    /** 換了封面：更新佇列裡受影響的音軌，通知列與鎖定畫面跟著變。音檔網址沒變，Media3 會無縫替換，不中斷播放 */
+    private suspend fun syncArtwork() {
+        val items = List(player.mediaItemCount) { player.getMediaItemAt(it) }
+        val uris = withContext(Dispatchers.IO) {
+            items.map { Graph.covers.artworkUri(it.mediaId, it.mediaMetadata.extras?.getString(MediaItems.EXTRA_THUMB)) }
+        }
+        items.forEachIndexed { i, item ->
+            val unchanged = uris[i] == item.mediaMetadata.artworkUri
+            // 讀檔期間清單可能已經換掉，對不上的不動
+            if (unchanged || i >= player.mediaItemCount || player.getMediaItemAt(i).mediaId != item.mediaId) return@forEachIndexed
+            player.replaceMediaItem(i, item.buildUpon().setMediaMetadata(item.mediaMetadata.buildUpon().setArtworkUri(uris[i]).build()).build())
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -307,5 +323,6 @@ class PlaybackService : MediaSessionService() {
         const val ARG_END_OF_TRACK = "endOfTrack"
         const val ARG_ENABLED = "enabled"
         private const val FADE_MS = 10_000L
+        private const val COVER_SYNC_MS = 500L
     }
 }

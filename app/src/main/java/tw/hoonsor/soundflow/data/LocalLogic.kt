@@ -51,11 +51,24 @@ object LocalLogic {
         return noNumber.ifEmpty { base.trim() }.ifEmpty { name }
     }
 
-    fun toTrack(e: LocalEntry, folderName: String): Track = Track(
-        id = e.id, kind = TrackKind.LOCAL, title = e.title, originalTitle = e.title, channel = e.artist ?: folderName,
-        sourceUrl = null, durationSec = e.durationSec, tier = "local", storageBucket = null, storagePath = null,
-        createdAt = Instant.ofEpochMilli(e.modifiedMs), localUri = e.uri, localFolder = e.folderUri, localDir = e.dir.ifEmpty { null },
-    )
+    /**
+     * 沒有歌手標籤時，把「歌手 - 歌名」拆開（顯示時才拆，舊索引不必重掃）。
+     * 分隔符號前後要有空白：有多段、或前段只有數字（日期、編號）就不拆，維持原樣。
+     */
+    fun artistTitle(e: LocalEntry): Pair<String?, String> {
+        if (e.artist != null) return e.artist to e.title
+        val parts = e.title.split(Regex("\\s+[-–—－]\\s+"))
+        return if (parts.size == 2 && parts[0].any(Char::isLetter)) parts[0].trim() to parts[1].trim() else null to e.title
+    }
+
+    fun toTrack(e: LocalEntry, folderName: String): Track {
+        val (artist, title) = artistTitle(e)
+        return Track(
+            id = e.id, kind = TrackKind.LOCAL, title = title, originalTitle = title, channel = artist ?: folderName,
+            sourceUrl = null, durationSec = e.durationSec, tier = "local", storageBucket = null, storagePath = null,
+            createdAt = Instant.ofEpochMilli(e.modifiedMs), localUri = e.uri, localFolder = e.folderUri, localDir = e.dir.ifEmpty { null },
+        )
+    }
 
     /** 合併掃描結果：同一首以 found 為準；已經移除的資料夾不留（掃描途中移除也一樣） */
     fun merge(found: List<LocalEntry>, rest: Collection<LocalEntry>, folders: Set<String>): List<LocalEntry> =

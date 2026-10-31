@@ -33,7 +33,7 @@ object MediaItems {
                     .setTitle(t.title)
                     .setArtist(artist)
                     .setAlbumTitle(album)
-                    .setArtworkUri(Graph.covers.artworkUri(t))
+                    .setArtworkUri(Graph.covers.artworkUri(t.id, t.thumbnailUrl))
                     .setDurationMs(t.durationSec?.let { it * 1000L })
                     .setIsPlayable(true)
                     .setExtras(Bundle().apply {

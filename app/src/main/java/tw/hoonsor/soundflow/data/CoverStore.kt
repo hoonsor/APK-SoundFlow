@@ -35,8 +35,10 @@ class CoverStore(private val context: Context) {
     fun fileFor(id: String): File? = found(id).takeIf { it.exists() } ?: base(id).takeIf { it.exists() }
     fun hasFound(id: String) = found(id).exists()
 
-    /** 通知列、鎖定畫面的封面：有存檔用存檔，否則用網址 */
-    fun artworkUri(t: Track): Uri? = fileFor(t.id)?.let { Uri.fromFile(it) } ?: t.thumbnailUrl?.let { Uri.parse(it) }
+    /** 通知列、鎖定畫面的封面：有存檔用存檔，否則用網址。v 只是讓換過的封面網址不同，系統才不會沿用舊圖 */
+    fun artworkUri(id: String, thumbnailUrl: String?): Uri? =
+        fileFor(id)?.let { Uri.fromFile(it).buildUpon().appendQueryParameter("v", it.lastModified().toString()).build() }
+            ?: thumbnailUrl?.let { Uri.parse(it) }
 
     /** 下載 YouTube 封面；沒有 maxresdefault 的影片改抓 hqdefault */
     suspend fun ensureThumb(id: String, url: String) {
