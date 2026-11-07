@@ -51,13 +51,18 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import androidx.media3.common.C
 import tw.hoonsor.soundflow.Graph
 import tw.hoonsor.soundflow.R
 import tw.hoonsor.soundflow.data.CoverBitmaps
 import tw.hoonsor.soundflow.data.SourceStyle
 import tw.hoonsor.soundflow.player.PlayMode
+import tw.hoonsor.soundflow.player.SeekBy
 import tw.hoonsor.soundflow.player.Speed
+import tw.hoonsor.soundflow.player.TapGate
 import tw.hoonsor.soundflow.player.TimeText
 import tw.hoonsor.soundflow.player.WidgetLayout
 import tw.hoonsor.soundflow.player.WidgetState
@@ -353,13 +358,25 @@ class PlayPauseAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.togglePlayNow()
 }
 
+// 上一首／下一首點兩下＝後退／前進 10 秒；代價是點一下要等 0.4 秒才換歌（倬 2026-11-07 同意）
+private val taps = TapGate(DOUBLE_TAP_MS)
+private const val DOUBLE_TAP_MS = 400L
+private const val DOUBLE_TAP_SEEK_MS = 10_000L
+
+private suspend fun seekBy(deltaMs: Long) = Graph.player.exec {
+    it.seekTo(SeekBy.target(it.currentPosition, it.duration.takeIf { d -> d != C.TIME_UNSET }, deltaMs))
+}
+
 class NextAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
-        Graph.player.exec { if (it.hasNextMediaItem()) it.seekToNextMediaItem() }
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = withContext(Dispatchers.Main.immediate) {
+        taps.tap("next", single = { Graph.player.exec { if (it.hasNextMediaItem()) it.seekToNextMediaItem() } }, double = { seekBy(DOUBLE_TAP_SEEK_MS) })
+    }
 }
 
 class PrevAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.exec { it.seekToPrevious() }
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = withContext(Dispatchers.Main.immediate) {
+        taps.tap("prev", single = { Graph.player.exec { it.seekToPrevious() } }, double = { seekBy(-DOUBLE_TAP_SEEK_MS) })
+    }
 }
 
 class Back15Action : ActionCallback {

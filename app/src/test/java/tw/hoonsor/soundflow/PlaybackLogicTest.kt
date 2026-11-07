@@ -4,17 +4,64 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import tw.hoonsor.soundflow.data.SfJson
 import tw.hoonsor.soundflow.data.SfUrls
 import tw.hoonsor.soundflow.player.ProgressRules
 import tw.hoonsor.soundflow.player.Queue
 import tw.hoonsor.soundflow.player.Repeat
+import tw.hoonsor.soundflow.player.SeekBy
 import tw.hoonsor.soundflow.player.Speed
+import tw.hoonsor.soundflow.player.TapGate
 import tw.hoonsor.soundflow.player.TimeText
 import tw.hoonsor.soundflow.player.TrackProgress
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackLogicTest {
+    @Test fun singleTapWaitsThenActs() = runTest {
+        val gate = TapGate(400)
+        val log = mutableListOf<String>()
+        launch { gate.tap("next", { log += "下一首" }, { log += "+10" }) }
+        advanceTimeBy(399); runCurrent()
+        assertEquals(emptyList<String>(), log)   // 還在等第二下
+        advanceTimeBy(2); runCurrent()
+        assertEquals(listOf("下一首"), log)
+    }
+
+    @Test fun secondTapInsideWindowIsDouble() = runTest {
+        val gate = TapGate(400)
+        val log = mutableListOf<String>()
+        launch { gate.tap("next", { log += "下一首" }, { log += "+10" }) }
+        advanceTimeBy(250); runCurrent()
+        launch { gate.tap("next", { log += "下一首" }, { log += "+10" }) }
+        advanceTimeBy(1_000); runCurrent()
+        assertEquals(listOf("+10"), log)
+    }
+
+    @Test fun tapsAfterWindowAndOtherButtonsAreSeparate() = runTest {
+        val gate = TapGate(400)
+        val log = mutableListOf<String>()
+        launch { gate.tap("next", { log += "下一首" }, { log += "+10" }) }
+        advanceTimeBy(500); runCurrent()
+        launch { gate.tap("next", { log += "下一首" }, { log += "+10" }) }   // 超過時限：又是單擊
+        advanceTimeBy(100); runCurrent()
+        launch { gate.tap("prev", { log += "上一首" }, { log += "-10" }) }   // 別顆按鈕不算第二下
+        advanceTimeBy(1_000); runCurrent()
+        assertEquals(listOf("下一首", "下一首", "上一首"), log)
+    }
+
+    @Test fun seekByStaysInsideTrack() {
+        assertEquals(15_000L, SeekBy.target(5_000, 60_000, 10_000))
+        assertEquals(0L, SeekBy.target(4_000, 60_000, -10_000))
+        assertEquals(60_000L, SeekBy.target(55_000, 60_000, 10_000))
+        assertEquals(70_000L, SeekBy.target(60_000, null, 10_000))   // 片長不明
+    }
+
     @Test fun speed() {
         assertEquals(0.5f, Speed.clamp(0.1f), 0f)
         assertEquals(3.0f, Speed.clamp(9f), 0f)
