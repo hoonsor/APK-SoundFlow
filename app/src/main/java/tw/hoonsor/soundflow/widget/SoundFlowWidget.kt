@@ -51,9 +51,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withContext
 import androidx.media3.common.C
 import tw.hoonsor.soundflow.Graph
 import tw.hoonsor.soundflow.R
@@ -62,7 +60,6 @@ import tw.hoonsor.soundflow.data.SourceStyle
 import tw.hoonsor.soundflow.player.PlayMode
 import tw.hoonsor.soundflow.player.SeekBy
 import tw.hoonsor.soundflow.player.Speed
-import tw.hoonsor.soundflow.player.TapGate
 import tw.hoonsor.soundflow.player.TimeText
 import tw.hoonsor.soundflow.player.WidgetLayout
 import tw.hoonsor.soundflow.player.WidgetState
@@ -181,27 +178,30 @@ private fun Mini(s: WidgetState) {
     }
 }
 
-/** 5×1：歌名；換清單、模式、倍速＋上一首、播放、下一首 */
+/** 5×1：歌名；換清單、模式、倍速＋倒退 10 秒、上一首、播放、下一首、快轉 10 秒 */
 @Composable
 private fun Bar(s: WidgetState) {
     Column(GlanceModifier.fillMaxSize().padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 6.dp)) {
         Title(s, 14, 1, GlanceModifier.fillMaxWidth())
         Spacer(GlanceModifier.defaultWeight())
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            ListChip(s, 92)
+            // 寬度加總約 370dp，Nova 5 欄約 380dp：再加按鈕會被切到
+            ListChip(s, 76)
             Spacer(GlanceModifier.width(4.dp))
-            ModeButton(s, 38)
+            ModeButton(s, 36)
             Spacer(GlanceModifier.width(4.dp))
-            SpeedButton(s, 52, 38)
+            SpeedButton(s, 48, 36)
             Spacer(GlanceModifier.defaultWeight())
-            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>())
+            Seek(R.drawable.ic_w_back, "倒退 10 秒", actionRunCallback<Back10Action>(), GlanceModifier.width(34.dp), 26, 44)
+            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.width(34.dp))
             PlayButton(s, 44)
-            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>())
+            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.width(34.dp))
+            Seek(R.drawable.ic_w_fwd, "快轉 10 秒", actionRunCallback<Fwd10Action>(), GlanceModifier.width(34.dp), 26, 44)
         }
     }
 }
 
-/** 2×2：歌名；上一首、播放、下一首；換清單、模式、倍速（按鈕與 5×1 相同） */
+/** 2×2：歌名；倒退 10 秒、上一首、播放、下一首、快轉 10 秒；換清單、模式、倍速 */
 @Composable
 private fun Square(s: WidgetState) {
     Column(GlanceModifier.fillMaxSize().padding(start = 6.dp, end = 6.dp, top = 10.dp, bottom = 6.dp)) {
@@ -212,9 +212,12 @@ private fun Square(s: WidgetState) {
         )
         Spacer(GlanceModifier.defaultWeight())
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.defaultWeight(), 24, 40)
+            // 五格平分：寬度只有約 140dp，播放鍵以外每格約 25dp
+            Seek(R.drawable.ic_w_back, "倒退 10 秒", actionRunCallback<Back10Action>(), GlanceModifier.defaultWeight(), 24, 40, 8)
+            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.defaultWeight(), 20, 40)
             PlayButton(s, 40)
-            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.defaultWeight(), 24, 40)
+            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.defaultWeight(), 20, 40)
+            Seek(R.drawable.ic_w_fwd, "快轉 10 秒", actionRunCallback<Fwd10Action>(), GlanceModifier.defaultWeight(), 24, 40, 8)
         }
         Spacer(GlanceModifier.height(4.dp))
         // 三格平分寬度：小工具的實際寬度因桌面而異，用固定寬度相加會超出邊界
@@ -231,7 +234,7 @@ private fun RowScope.Slot(content: @Composable () -> Unit) {
     Box(GlanceModifier.defaultWeight().padding(horizontal = 2.dp), contentAlignment = Alignment.Center) { content() }
 }
 
-/** 4×2：上排換清單、模式、倍速、睡眠、面板；中間歌名、時間、進度；下排倒退、上下首、播放、快轉 */
+/** 4×2：上排換清單、模式、倍速、睡眠、面板；中間歌名、時間、進度；下排倒退 10 秒、上下首、播放、快轉 10 秒 */
 @Composable
 private fun Full(s: WidgetState) {
     val sleepLeft = s.sleepEndsAt - System.currentTimeMillis()
@@ -260,11 +263,11 @@ private fun Full(s: WidgetState) {
         }
         Spacer(GlanceModifier.height(4.dp))
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Seek(R.drawable.ic_w_back15, "15", "倒退 15 秒", actionRunCallback<Back15Action>())
+            Seek(R.drawable.ic_w_back, "倒退 10 秒", actionRunCallback<Back10Action>(), GlanceModifier.defaultWeight())
             Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.defaultWeight(), 26)
             PlayButton(s, 48)
             Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.defaultWeight(), 26)
-            Seek(R.drawable.ic_w_fwd30, "30", "快轉 30 秒", actionRunCallback<Fwd30Action>())
+            Seek(R.drawable.ic_w_fwd, "快轉 10 秒", actionRunCallback<Fwd10Action>(), GlanceModifier.defaultWeight())
         }
     }
 }
@@ -299,12 +302,12 @@ private fun Icon(icon: Int, label: String, action: Action, modifier: GlanceModif
     }
 }
 
-/** 倒退／快轉：圖示中間疊秒數 */
+/** 倒退／快轉 10 秒：圖示中間疊秒數 */
 @Composable
-private fun RowScope.Seek(icon: Int, seconds: String, label: String, action: Action) {
-    Box(GlanceModifier.defaultWeight().height(48.dp).clickable(action), contentAlignment = Alignment.Center) {
-        Image(ImageProvider(icon), contentDescription = label, colorFilter = ColorFilter.tint(cp(White)), modifier = GlanceModifier.size(30.dp))
-        Text(seconds, style = TextStyle(color = cp(White), fontSize = 9.sp, fontWeight = FontWeight.Bold))
+private fun Seek(icon: Int, label: String, action: Action, modifier: GlanceModifier, iconSize: Int = 30, height: Int = 48, textSp: Int = 9) {
+    Box(modifier.height(height.dp).clickable(action), contentAlignment = Alignment.Center) {
+        Image(ImageProvider(icon), contentDescription = label, colorFilter = ColorFilter.tint(cp(White)), modifier = GlanceModifier.size(iconSize.dp))
+        Text("10", style = TextStyle(color = cp(White), fontSize = textSp.sp, fontWeight = FontWeight.Bold))
     }
 }
 
@@ -358,34 +361,29 @@ class PlayPauseAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.togglePlayNow()
 }
 
-// 上一首／下一首點兩下＝後退／前進 10 秒；代價是點一下要等 0.4 秒才換歌（倬 2026-11-07 同意）
-private val taps = TapGate(DOUBLE_TAP_MS)
-private const val DOUBLE_TAP_MS = 400L
-private const val DOUBLE_TAP_SEEK_MS = 10_000L
-
 private suspend fun seekBy(deltaMs: Long) = Graph.player.exec {
     it.seekTo(SeekBy.target(it.currentPosition, it.duration.takeIf { d -> d != C.TIME_UNSET }, deltaMs))
 }
 
+// 點一下立刻換歌。v0.7.4 試過點兩下快轉，但 Nova 的全域雙擊手勢會先攔走（倬 2026-11-07 回報），改成專用的 ±10 秒按鈕
 class NextAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = withContext(Dispatchers.Main.immediate) {
-        taps.tap("next", single = { Graph.player.exec { if (it.hasNextMediaItem()) it.seekToNextMediaItem() } }, double = { seekBy(DOUBLE_TAP_SEEK_MS) })
-    }
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        Graph.player.exec { if (it.hasNextMediaItem()) it.seekToNextMediaItem() }
 }
 
 class PrevAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = withContext(Dispatchers.Main.immediate) {
-        taps.tap("prev", single = { Graph.player.exec { it.seekToPrevious() } }, double = { seekBy(-DOUBLE_TAP_SEEK_MS) })
-    }
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.exec { it.seekToPrevious() }
 }
 
-class Back15Action : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.exec { it.seekBack() }
+class Back10Action : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = seekBy(-SEEK_MS)
 }
 
-class Fwd30Action : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = Graph.player.exec { it.seekForward() }
+class Fwd10Action : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) = seekBy(SEEK_MS)
 }
+
+private const val SEEK_MS = 10_000L
 
 class SpeedAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =

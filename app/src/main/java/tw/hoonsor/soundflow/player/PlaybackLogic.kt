@@ -1,9 +1,5 @@
 package tw.hoonsor.soundflow.player
 
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
@@ -125,29 +121,6 @@ object Queue {
             i++
         }
         return out
-    }
-}
-
-/**
- * 小工具按鈕的點兩下（小工具只回報「點了一下」，要自己判斷）：
- * 第一下先等 windowMs，期間同一顆按鈕再點一下就做 double，否則做 single。tap 會等到動作做完才返回。
- * 只能在同一個執行緒呼叫（小工具切到主執行緒）。
- */
-class TapGate(private val windowMs: Long) {
-    private val pending = mutableMapOf<String, Job>()
-
-    suspend fun tap(key: String, single: suspend () -> Unit, double: suspend () -> Unit) = coroutineScope {
-        val first = pending.remove(key)
-        if (first?.isActive == true) {
-            first.cancel()
-            double()
-            return@coroutineScope
-        }
-        pending[key] = launch {
-            delay(windowMs)
-            pending.remove(key)
-            single()
-        }
     }
 }
 
