@@ -201,20 +201,25 @@ private fun Bar(s: WidgetState) {
     Column(GlanceModifier.fillMaxSize().padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 6.dp)) {
         Title(s, 14, 1, GlanceModifier.fillMaxWidth())
         Spacer(GlanceModifier.defaultWeight())
+        // Glance 的 Row／Column 最多 10 個子元件，多的會被直接丟掉（不報錯）。
+        // v0.7.5、v0.7.6 這一排有 11 個，最後一顆 +10 根本沒畫出來；所以分成左右兩組，各自在 10 個以內
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // 換清單鈕吃剩下的寬度（歌單名稱會截短），右邊五顆固定寬度，永遠放得下。
-            // v0.7.5 用固定寬度加總約 370dp，倬的 Nova 5 欄實測只有約 348dp，最右邊的 +10 被切掉
-            ListChip(s, GlanceModifier.defaultWeight())
-            Spacer(GlanceModifier.width(4.dp))
-            ModeButton(s, 34)
-            Spacer(GlanceModifier.width(4.dp))
-            SpeedButton(s, 42, 34)
-            Spacer(GlanceModifier.width(2.dp))
-            Seek(R.drawable.ic_w_back, "倒退 10 秒", actionRunCallback<Back10Action>(), GlanceModifier.width(32.dp), 26, 44)
-            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.width(30.dp), 20)
-            PlayButton(s, 40)
-            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.width(30.dp), 20)
-            Seek(R.drawable.ic_w_fwd, "快轉 10 秒", actionRunCallback<Fwd10Action>(), GlanceModifier.width(32.dp), 26, 44)
+            // 左組吃剩下的寬度（歌單名稱會截短），右組五顆固定寬度
+            Row(GlanceModifier.defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
+                ListChip(s, GlanceModifier.defaultWeight())
+                Spacer(GlanceModifier.width(4.dp))
+                ModeButton(s, 34)
+                Spacer(GlanceModifier.width(4.dp))
+                SpeedButton(s, 42, 34)
+                Spacer(GlanceModifier.width(2.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Seek(R.drawable.ic_w_back, "倒退 10 秒", actionRunCallback<Back10Action>(), GlanceModifier.width(32.dp), 26, 44)
+                Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.width(30.dp), 20)
+                PlayButton(s, 40)
+                Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.width(30.dp), 20)
+                Seek(R.drawable.ic_w_fwd, "快轉 10 秒", actionRunCallback<Fwd10Action>(), GlanceModifier.width(32.dp), 26, 44)
+            }
         }
     }
 }
