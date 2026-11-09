@@ -113,7 +113,24 @@ class SoundFlowWidget : GlanceAppWidget() {
     }
 }
 
+/**
+ * 小工具清單裡的四個項目（4×2、5×1、2×2、2×1）：內容都是同一個 [SoundFlowWidget]，只差預設大小與預覽圖，
+ * 放上桌面後一樣可以拖拉改大小。[push] 用 SoundFlowWidget 類別找 id，四種都會一起刷新。
+ * SoundFlowWidgetReceiver（4×2）的類別名稱不能改：桌面上已經放好的小工具靠它。
+ */
 class SoundFlowWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = SoundFlowWidget()
+}
+
+class SoundFlowBarReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = SoundFlowWidget()
+}
+
+class SoundFlowSquareReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = SoundFlowWidget()
+}
+
+class SoundFlowMiniReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = SoundFlowWidget()
 }
 
@@ -185,18 +202,19 @@ private fun Bar(s: WidgetState) {
         Title(s, 14, 1, GlanceModifier.fillMaxWidth())
         Spacer(GlanceModifier.defaultWeight())
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // 寬度加總約 370dp，Nova 5 欄約 380dp：再加按鈕會被切到
-            ListChip(s, 76)
+            // 換清單鈕吃剩下的寬度（歌單名稱會截短），右邊五顆固定寬度，永遠放得下。
+            // v0.7.5 用固定寬度加總約 370dp，倬的 Nova 5 欄實測只有約 348dp，最右邊的 +10 被切掉
+            ListChip(s, GlanceModifier.defaultWeight())
             Spacer(GlanceModifier.width(4.dp))
-            ModeButton(s, 36)
+            ModeButton(s, 34)
             Spacer(GlanceModifier.width(4.dp))
-            SpeedButton(s, 48, 36)
-            Spacer(GlanceModifier.defaultWeight())
-            Seek(R.drawable.ic_w_back, "倒退 10 秒", actionRunCallback<Back10Action>(), GlanceModifier.width(34.dp), 26, 44)
-            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.width(34.dp))
-            PlayButton(s, 44)
-            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.width(34.dp))
-            Seek(R.drawable.ic_w_fwd, "快轉 10 秒", actionRunCallback<Fwd10Action>(), GlanceModifier.width(34.dp), 26, 44)
+            SpeedButton(s, 42, 34)
+            Spacer(GlanceModifier.width(2.dp))
+            Seek(R.drawable.ic_w_back, "倒退 10 秒", actionRunCallback<Back10Action>(), GlanceModifier.width(32.dp), 26, 44)
+            Icon(R.drawable.ic_w_prev, "上一首", actionRunCallback<PrevAction>(), GlanceModifier.width(30.dp), 20)
+            PlayButton(s, 40)
+            Icon(R.drawable.ic_w_next, "下一首", actionRunCallback<NextAction>(), GlanceModifier.width(30.dp), 20)
+            Seek(R.drawable.ic_w_fwd, "快轉 10 秒", actionRunCallback<Fwd10Action>(), GlanceModifier.width(32.dp), 26, 44)
         }
     }
 }
@@ -344,9 +362,12 @@ private fun SpeedChip(s: WidgetState, modifier: GlanceModifier, height: Int, fon
 }
 
 @Composable
-private fun ListChip(s: WidgetState, width: Int) {
+private fun ListChip(s: WidgetState, width: Int) = ListChip(s, GlanceModifier.width(width.dp))
+
+@Composable
+private fun ListChip(s: WidgetState, modifier: GlanceModifier) {
     Row(
-        GlanceModifier.width(width.dp).height(38.dp).cornerRadius(19.dp).background(cp(ChipBg)).clickable(actionStartActivity<WidgetPickerActivity>())
+        modifier.height(38.dp).cornerRadius(19.dp).background(cp(ChipBg)).clickable(actionStartActivity<WidgetPickerActivity>())
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

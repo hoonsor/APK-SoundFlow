@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小工具清單的預覽圖（scripts 產生的示意圖，非實際畫面） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp" android:height="80dp" android:viewportWidth="160" android:viewportHeight="80">
+    <path android:pathData="M0,0h160v80h-160z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="160" android:endY="80"
+                android:startColor="#FF1F5F5A" android:endColor="#FF182238" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M18,12h102a4,4 0 0 1 4,4v3a4,4 0 0 1 -4,4h-102a4,4 0 0 1 -4,-4v-3a4,4 0 0 1 4,-4z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M65,54a15,15 0 1,0 30,0a15,15 0 1,0 -30,0z" />
+    <path android:fillColor="#FF111A2E" android:pathData="M75.6,47.7L86.3,54L75.6,60.3z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M39.7,48.3L31.15,54L39.7,59.7z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M28.9,48.3h2.0v11.4h-2.0z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M120.3,48.3L128.85,54L120.3,59.7z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M129.1,48.3h2.0v11.4h-2.0z" />
+</vector>

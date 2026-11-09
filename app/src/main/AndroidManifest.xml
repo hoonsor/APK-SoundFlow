@@ -67,16 +67,50 @@
         </activity>
 
         <!-- 桌面小工具（Glance）與它的「換清單」小視窗 -->
+        <!-- 小工具清單分成四個尺寸；內容相同，放上桌面後都能拖拉改大小 -->
         <receiver
             android:name=".widget.SoundFlowWidgetReceiver"
             android:exported="true"
-            android:label="@string/app_name">
+            android:label="@string/widget_full_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/soundflow_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.SoundFlowBarReceiver"
+            android:exported="true"
+            android:label="@string/widget_bar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/soundflow_widget_bar_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.SoundFlowSquareReceiver"
+            android:exported="true"
+            android:label="@string/widget_square_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/soundflow_widget_square_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.SoundFlowMiniReceiver"
+            android:exported="true"
+            android:label="@string/widget_mini_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/soundflow_widget_mini_info" />
         </receiver>
         <activity
             android:name=".widget.WidgetPickerActivity"

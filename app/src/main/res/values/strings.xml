@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- app_name、share_label 依正式版／LAB 版不同，放在 app/build.gradle.kts 的 resValue -->
-    <string name="widget_description">播放／暫停、切歌、倍速、循環、換清單</string>
+    <!-- 小工具清單：四個尺寸各一項 -->
+    <string name="widget_full_label">完整播放器</string>
+    <string name="widget_bar_label">長條播放器</string>
+    <string name="widget_square_label">方形播放器</string>
+    <string name="widget_mini_label">迷你播放器</string>
+    <string name="widget_description">進度、±10 秒、切歌、倍速、循環、睡眠、換清單</string>
+    <string name="widget_bar_description">±10 秒、切歌、倍速、循環、換清單</string>
+    <string name="widget_square_description">±10 秒、切歌、倍速、循環、換清單</string>
+    <string name="widget_mini_description">播放／暫停、切歌</string>
 </resources>
