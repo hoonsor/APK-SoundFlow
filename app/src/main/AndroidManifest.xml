@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 每日自動備份：重開機後保留排程（沒有也行，App 下次啟動會重排） -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".App"
@@ -25,6 +27,13 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.SoundFlow">
+
+        <!-- 每日自動備份（hoonsor-kit android-auto-backup）：寫到 Documents/HoonsorBackup/SoundFlow/，Dropsync 同步到 Dropbox -->
+        <meta-data android:name="tw.hoonsor.backup.SOURCE" android:value="tw.hoonsor.soundflow.backup.SoundFlowBackupSource" />
+        <service
+            android:name="tw.hoonsor.backup.BackupJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <activity
             android:name=".ui.MainActivity"

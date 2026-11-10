@@ -43,6 +43,12 @@ class ProgressRepository(context: Context) {
         save { it + (id to TrackProgress(if (played) old?.positionMs ?: 0 else 0, old?.durationMs ?: 0, played, System.currentTimeMillis())) }
     }
 
+    /** 從備份檔還原：同一集取比較新的那筆（BackupLogic.mergeProgress） */
+    suspend fun mergeFrom(backup: Map<String, TrackProgress>) {
+        load()
+        save { tw.hoonsor.soundflow.backup.BackupLogic.mergeProgress(it, backup) }
+    }
+
     private suspend fun save(change: (Map<String, TrackProgress>) -> Map<String, TrackProgress>) = mutex.withLock {
         _state.update(change)
         val json = ProgressRules.toJson(_state.value)

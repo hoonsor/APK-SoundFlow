@@ -2,11 +2,11 @@
 
 | 項目 | 內容 |
 |---|---|
-| 目前版本 | v0.7.7（資料夾架構、找封面擴充、貼上圖片、鎖定畫面資訊、小工具 ±10 秒按鈕、小工具四種尺寸與預覽圖；待實機確認，未打 tag）；上一個正式版 v0.5.0 |
+| 目前版本 | v0.8.0（每日自動備份到 Documents/HoonsorBackup/SoundFlow/＋從備份檔還原；feat/auto-backup 分支，未合併、未打 tag）；v0.7.7（資料夾架構、找封面擴充、貼上圖片、鎖定畫面資訊、小工具 ±10 秒按鈕、小工具四種尺寸與預覽圖；待實機確認，未打 tag）；上一個正式版 v0.5.0 |
 | 階段 | SOP 第 5 步分版實作中（倬 2026-10-26 要求 YouTube 分享提前到 v0.4.0，先測它再測播放與小工具） |
 | GitHub | https://github.com/hoonsor/APK-SoundFlow（public） |
 | 最新測試版 | https://github.com/hoonsor/APK-SoundFlow/releases/tag/latest |
-| 最後更新 | 2026-11-08 |
+| 最後更新 | 2026-11-10 |
 
 ## 任務
 
@@ -34,6 +34,7 @@
 - [x] v0.5.0 N100：worker 0.5.0 每分鐘處理垃圾桶（7 天到期或立即永久刪除）：YouTube 刪 sf 檔；Podcast 只有選了「連新知雷達的音檔一起刪」才刪 nlm 檔；保留 sf_track 列（hidden、purged_at），避免 nlm_job 觸發器加回來；已部署並重啟
 - [x] v0.6.0：桌面小工具 `widget/SoundFlowWidget.kt`（Glance 1.1.1，PreferencesGlanceStateDefinition）、`widget/WidgetPickerActivity.kt`（換清單）、`player/QueueSnapshot.kt`（MediaItems 共用建構、清單快照、小工具狀態）；PlaybackService 事件時推送小工具（合併 0.5 秒、播放中每 30 秒刷新進度）、onPlaybackResumption
 - [x] v0.7.0：修小工具按鈕（`PlayerConnection` 切回主執行緒）；全幅沉浸四尺寸；手勢控制面板 `widget/WidgetPanelActivity.kt`；播放模式三段式（`PlayMode`，存在設定）；封面 `data/CoverStore.kt`＋`ui/CoverUi.kt`；本機音檔 `data/LocalRepository.kt`、`data/LocalLogic.kt`（`TrackKind.LOCAL`，音軌放在 TrackRepository 的 LOCAL 狀態）；找封面 `data/CoverSearchRepository.kt`
+- [x] v0.8.0：每日自動備份（共用模組 android-auto-backup 1.0.0，`tw/hoonsor/backup/`）＋`backup/BackupLogic.kt`（純邏輯）、`backup/SoundFlowBackup.kt`（匯出、還原、SoundFlowBackupSource）、`ui/BackupRows.kt`（設定頁「備份與還原」）
 - [ ] 後端：sf_progress（進度雲端同步）、Edge Function drive-token、Google Cloud OAuth
 - [ ] N100 封存工作（Supabase → Google Drive）
 
@@ -41,7 +42,8 @@
 
 | 版本 | 日期 | commit | 變更 | 為什麼 |
 |---|---|---|---|---|
-| v0.7.7 | 2026/11/09 | （本次） | 5×1 下排拆成左右兩組 Row | 真正原因：Glance 的 Row 最多 10 個子元件，第 11 個（+10）被丟掉 |
+| v0.8.0 | 2026/11/10 | （本次，feat/auto-backup） | 每天自動備份到手機的 Documents/HoonsorBackup/SoundFlow/（LAB 版 SoundFlow-LAB），Dropsync 同步到 Dropbox；內容沒變不另存、只留 7 份；設定頁「備份與還原」：開關、上次備份、立即備份、從備份檔還原 | 收聽進度、設定、自己挑的封面只存在手機，換機或重裝就沒了；套用 hoonsor-kit 共用模組 |
+| v0.7.7 | 2026/11/09 | 34c7789 | 5×1 下排拆成左右兩組 Row | 真正原因：Glance 的 Row 最多 10 個子元件，第 11 個（+10）被丟掉 |
 | v0.7.6 | 2026/11/09 | e656bd4 | 5×1 改成換清單鈕吃剩下寬度、右側五顆固定；小工具清單分成 4×2／5×1／2×2／2×1 四項並加預覽圖 | 倬實測 5×1 的 +10 被切掉（實際寬度約 348dp）；小工具清單只有 4×2 且沒有預覽 |
 | v0.7.5 | 2026/11/08 | e10277f | 拿掉點兩下快轉，改成 ±10 秒專用按鈕（4×2、5×1、2×2） | 倬實測：Nova 的全域手勢「點桌面兩下開 Chrome」會先攔走點兩下 |
 | v0.7.4 | 2026/11/07 | 2aee4fc | 小工具上一首／下一首點兩下＝後退／前進 10 秒 | 倬想在桌面小工具直接快轉，不必開 App |
@@ -113,6 +115,13 @@
 - [ ] v0.7.7：5×1 最右邊的 +10 完整顯示（v0.7.6 的四個尺寸與預覽圖倬已確認）；已放在桌面的舊小工具仍會更新
 - [ ] v0.7.3：檔名「滅火器 Fire EX. - 曾經瘋狂」的音檔，列表與鎖定畫面顯示歌名「曾經瘋狂」、歌手「滅火器 Fire EX.」；日期開頭的錄音檔名不受影響
 
+- [ ] v0.8.0：設定 → 備份與還原 → 立即備份 → 顯示「已備份：SoundFlow-yyyyMMdd-HHmm.zip」；檔案管理員的 Documents/HoonsorBackup/SoundFlow/ 看得到；再按一次會多一份（立即備份一律另存）
+- [ ] v0.8.0：隔天狀態列顯示「上次備份：M/d HH:mm」（ColorOS 可能延後幾小時）；Dropsync 同步到 Dropbox
+- [ ] v0.8.0：改佈景主題、聽一段 Podcast 後「從備份檔還原」選前一份 → 佈景主題回到備份時的值；進度同一集保留比較新的那筆；仍是登入狀態
+- [ ] v0.8.0：選一個不是 SoundFlow 的 zip（或語音總控的 json）→ 顯示「這不是 SoundFlow 的備份檔」，資料不變
+- [ ] v0.8.0：LAB 版的備份在 SoundFlow-LAB 資料夾，與正式版互不刪除
+- [ ] v0.8.0：重裝後還原：本機音檔要重新匯入資料夾，進度與自己挑的封面會接上（id 由檔案網址推得，同一支手機同一個資料夾應該一樣，**未實測**）
+
 ## 下一步
 
 1. 倬實機測 v0.7.7（`latest` 預先發行版）→ 通過後打 v0.7.7 tag，v0.7.0～v0.7.6 以它為準（匯入與小工具已由倬確認）（v0.3.0、v0.4.0、v0.6.0 以 v0.7.0 整體通過為準）。v0.5.0 已於 2026-10-26 實機通過並打 tag；v0.3.0／v0.4.0 的個別項目倬未逐項回報，以 v0.5.0 整體通過為準（倬 2026-10-26：清單管理完成後就做小工具）。v0.4.0 YouTube 分享 2026-10-26 倬實測轉檔成功。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
@@ -121,6 +130,23 @@
 4. SOP 第 5 步接下來（2026-10-26 再調整）：v0.7.x 待播佇列、搜尋 → v0.8.0 快取與 Drive 封存 → v0.9.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-11-10／電腦 A（feat/auto-backup worktree：D:\dev\APK-SoundFlow-backup）
+- 完成 v0.8.0：套用 hoonsor-kit 共用模組 android-auto-backup（兩個 Java 檔原樣複製，未改模組庫）；Manifest 登記 SOURCE＝`tw.hoonsor.soundflow.backup.SoundFlowBackupSource`、BackupJobService、RECEIVE_BOOT_COMPLETED；`App.onCreate` 呼叫 `AutoBackup.ensureScheduled`
+- 備份 zip 內容：manifest.json、settings.json、progress.json、last_queue.json、pending_shares.json（有才放）、covers/*.found.jpg
+- **決定＋原因**
+  - 設定用 DataStore 讀出轉 JSON（每個值記型別），不直接複製 settings.preferences_pb：DataStore 在記憶體有快取，還原時直接蓋檔案不會生效、可能弄壞檔案；JSON 也能看得懂、跨版本相容
+  - 備份 `covers/*.found.jpg`：這是倬幫本機音檔手動挑的封面（網路搜尋、手機選圖、貼上），雲端沒有，不能重抓；`covers/<id>.jpg`（YouTube 縮圖、音檔內嵌封面）可重抓或重掃，不放
+  - 不放 local_library.json：資料夾授權（takePersistableUriPermission）重裝或換機就失效，還原了也讀不到；重新匯入資料夾即可，本機音檔 id＝SHA-1(檔案網址)，同一個資料夾會得到同樣的 id，進度與封面接得上
+  - 不放 auth DataStore、SecureBox（Keystore 換機解不開，也不該離開手機）、library.json／tracks_*.json（Supabase 快取）、widget_state.json（播放服務會重推）、cover_pending（找封面途中的暫存）
+  - zip 項目時間固定、manifest 不寫備份時間：內容沒變時位元組完全相同，AutoBackup 的 SHA-256 才能「沒變不另存」
+  - 還原：設定整份取代；收聽進度同一集取 updatedAt 較新的（`BackupLogic.mergeProgress`），避免舊備份蓋掉之後的新進度；待送出分享合併；封面與 last_queue.json 直接寫回；只接受白名單內的檔名（擋 ../ 與 auth）
+  - 還原後不重開畫面：佈景主題、檢視方式、進度都是 Flow 會自己更新；播放模式在播放服務下次啟動時套用
+  - 結果顯示在設定頁區塊內，不用 Toast（AGENTS.md：ColorOS 有時不顯示 Toast）
+- **放棄＋原因**：直接複製 preferences_pb（理由同上）；用 Activity.recreate()（Flow 已會更新，recreate 反而會把結果訊息清掉）
+- 驗證：JVM 單元測試（AutoBackupTest 3 項＋BackupTest 10 項，全部 82 項）與 prodDebug／labDebug 編譯通過；**未實機驗證**（照指示沒用 adb／模擬器）
+- 未完成：合併到 main、push、打 tag 都還沒做；PROJECT_STATUS 的實機驗證項目待倬測
+- 下一步：倬確認後把 feat/auto-backup 合併進 main（合併前打 `pre-merge-v0.8.0`），push 讓 CI 出 latest 版實機測
 
 ### 2026-11-09（第 2 段）／電腦 A
 - 倬實測 v0.7.6：四個尺寸與預覽圖都正常；5×1 的 +10 仍沒出現

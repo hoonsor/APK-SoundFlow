@@ -104,6 +104,13 @@ class JobRepository(
         if (urls.isEmpty()) pendingFile.delete() else pendingFile.writeText(JobJson.pendingToJson(urls))
     }
 
+    /** 從備份檔還原沒送出的分享：和手機裡現有的合併，下次開 App 自動補送 */
+    suspend fun mergePending(urls: List<String>) = pendingLock.withLock {
+        val all = (readPending() + urls).distinct()
+        writePending(all)
+        _state.update { it.copy(pendingOffline = all.size) }
+    }
+
     private suspend fun addPending(url: String) = pendingLock.withLock {
         writePending((readPending() + url).distinct())
         _state.update { it.copy(pendingOffline = it.pendingOffline + 1) }

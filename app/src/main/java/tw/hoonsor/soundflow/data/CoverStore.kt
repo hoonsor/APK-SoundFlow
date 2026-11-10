@@ -98,6 +98,9 @@ class CoverStore(private val context: Context) {
 
     private fun bump() = _version.update { it + 1 }
 
+    /** 從備份檔寫回封面後呼叫，畫面重新讀圖 */
+    fun reloaded() = bump()
+
     private suspend fun fetch(url: String): ByteArray? = withContext(Dispatchers.IO) {
         runCatching {
             http.newCall(Request.Builder().url(url).build()).execute().use { r ->

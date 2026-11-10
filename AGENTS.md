@@ -44,6 +44,7 @@
 ```
 app/src/main/java/tw/hoonsor/
 ├─ agent/HoonsorAgent.kt          共用 SDK（整份複製自 APK-VoiceHub，不要在這裡改）
+├─ backup/AutoBackup.java、BackupJobService.java  共用模組 android-auto-backup（hoonsor-kit，不要在這裡改，改模組庫）
 └─ soundflow/
    ├─ App.kt                      Application＋Graph（手動依賴注入）
    ├─ agent/AgentProvider.kt      Agent API：describe 讀 assets 的 agent-manifest.json
@@ -59,6 +60,8 @@ app/src/main/java/tw/hoonsor/
    │  ├─ SecureBox.kt             Keystore AES-GCM，加密登入權杖
    │  ├─ Models.kt                Track、Session、SfJson（解析）、SfFormat（顯示格式）、SourceStyle（封面色）
    │  └─ supabase/SupabaseClient.kt  OkHttp 直接呼叫 GoTrue／PostgREST，錯誤轉中文（SupabaseErrors）
+   ├─ backup/BackupLogic.kt       備份 zip 純邏輯：選檔（白名單）、打包／解包、設定編碼、進度合併（BackupTest）
+   ├─ backup/SoundFlowBackup.kt   匯出、還原、SoundFlowBackupSource（每日自動備份的來源）；UI 在 ui/BackupRows.kt
    ├─ widget/SoundFlowWidget.kt   桌面小工具（Glance）：三種版面、按鈕 ActionCallback、push() 推送狀態
    ├─ widget/WidgetPickerActivity.kt  小工具「換清單」小視窗（只用手機快取）
    ├─ share/ShareActivity.kt      接收「分享 → SoundFlow 轉成音檔」：沒有畫面，送出後立刻關閉，結果用 Toast
@@ -125,6 +128,8 @@ worker/                          N100 轉檔服務（Python 標準庫＋yt-dlp�
 - 標籤顏色只存代號（`sf_label.color`），顏色值在 `SfLabelColors`；新增顏色要過 ThemeTest 的對比度檢查
 - 同一集貼兩個標籤會在分組模式出現兩次：LazyGrid 的 key 要加組別（`"$groupKey/${id}"`），否則會因重複 key 當機
 - **能登入 ≠ 能用 SoundFlow**：Auth Users 是登入帳號（三個服務共用），`sf_member` 才是 SoundFlow 白名單。白名單外的帳號讀到空陣列、寫入回 403（42501）；App 登入後呼叫 `rpc/sf_whoami` 判斷，顯示「這個信箱還沒開通」（v0.4.2）
+
+- **備份不可放登入與金鑰**：auth DataStore、SecureBox 永遠不進備份 zip；新增要備份的檔案時改 `BackupLogic.selectFiles`／`isAllowedEntry` 的白名單並補 BackupTest。zip 項目時間固定、manifest 不寫時間，否則每天都會多一份相同內容的備份
 
 ## 倬的偏好
 

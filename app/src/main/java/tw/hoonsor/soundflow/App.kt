@@ -22,6 +22,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         Graph.init(this)
+        // 每日自動備份（hoonsor-kit android-auto-backup）：開著才排，已排好不會重排
+        runCatching { tw.hoonsor.backup.AutoBackup.ensureScheduled(this) }
     }
 }
 

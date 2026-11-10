@@ -144,6 +144,7 @@ private fun SettingsScreen(theme: SfThemeId, onThemeChange: (SfThemeId) -> Unit)
             NavRow("批次找封面", "幫本機音檔補上封面，存在 App 裡、不改音檔") { batch = true }
         }
         Section("帳號與雲端") { AccountRows() }
+        Section("備份與還原") { BackupRows() }
         Text(
             "SoundFlow v${BuildConfig.VERSION_NAME} · ${context.packageName}",
             style = SfType.number, color = c.muted, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),

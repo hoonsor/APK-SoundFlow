@@ -3,7 +3,12 @@ package tw.hoonsor.soundflow.data
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.first
 import tw.hoonsor.soundflow.player.PlayMode
 import tw.hoonsor.soundflow.player.Speed
@@ -65,6 +70,28 @@ class SettingsRepository(private val context: Context) {
             it[k(kind, "group")] = if (v.groupByLabel) "1" else "0"
             it[k(kind, "sort")] = v.sort.key.key
             it[k(kind, "desc")] = if (v.sort.descending) "1" else "0"
+        }
+    }
+
+    // ---- 備份與還原（backup/SoundFlowBackup）：整份設定以 key 名稱＋值傳遞 ----
+
+    suspend fun exportAll(): Map<String, Any> = context.settingsStore.data.first().asMap().mapKeys { it.key.name }
+
+    /** 整份取代目前的設定（備份檔沒有的 key 會回到預設值） */
+    suspend fun importAll(values: Map<String, Any>) {
+        context.settingsStore.edit { p ->
+            p.clear()
+            values.forEach { (k, v) ->
+                when (v) {
+                    is String -> p[stringPreferencesKey(k)] = v
+                    is Boolean -> p[booleanPreferencesKey(k)] = v
+                    is Int -> p[intPreferencesKey(k)] = v
+                    is Long -> p[longPreferencesKey(k)] = v
+                    is Float -> p[floatPreferencesKey(k)] = v
+                    is Double -> p[doublePreferencesKey(k)] = v
+                    is Set<*> -> p[stringSetPreferencesKey(k)] = v.filterIsInstance<String>().toSet()
+                }
+            }
         }
     }
 }
