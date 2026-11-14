@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import tw.hoonsor.soundflow.Graph
 import tw.hoonsor.soundflow.data.SourceStyle
+import tw.hoonsor.soundflow.player.PlayMode
 import tw.hoonsor.soundflow.player.Speed
 import tw.hoonsor.soundflow.player.WidgetState
 import tw.hoonsor.soundflow.ui.rememberCover
@@ -70,7 +71,7 @@ import tw.hoonsor.soundflow.ui.theme.toColor
 
 /**
  * 手勢控制面板（F53，設計畫布第 6 列）：點小工具的歌名跳出。
- * 小工具本身收不到滑動，上下滑切歌、左右滑調倍速、滑桿都放在這個透明畫面。
+ * 小工具本身收不到滑動，上下滑切歌、左右滑調倍速、滑桿、播放模式都放在這個透明畫面。
  */
 class WidgetPanelActivity : ComponentActivity() {
     private val presets = listOf(1f, 1.25f, 1.5f, 1.75f, 2f)
@@ -118,6 +119,12 @@ class WidgetPanelActivity : ComponentActivity() {
                     contentAlignment = Alignment.Center,
                 ) { Icon(if (ui.isPlaying) SfIcons.Pause else SfIcons.Play, contentDescription = if (ui.isPlaying) "暫停" else "播放", tint = c.onAccent, modifier = Modifier.size(28.dp)) }
                 Control(SfIcons.Next, "下一首") { Graph.player.next() }
+            }
+
+            // 小工具上的模式鈕只能輪流切換，這裡直接點選（倬 2026-11-14）
+            Text("播放模式", style = SfType.rowTitle, color = c.text)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PlayMode.entries.forEach { m -> Pick(m.label, selected = ui.mode == m, modifier = Modifier.weight(1f)) { Graph.player.setMode(m) } }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {

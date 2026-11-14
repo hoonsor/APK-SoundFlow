@@ -226,6 +226,8 @@ class PlayerConnection(
     fun seekTo(ms: Long) = withController { it.seekTo(ms) }
     fun setSpeed(v: Float) = withController { it.setPlaybackSpeed(Speed.clamp(v)) }
     fun cycleMode() = withController { it.applyMode(modeOf(it).next()) }
+    /** 直接指定播放模式（小工具的控制面板） */
+    fun setMode(m: PlayMode) = withController { it.applyMode(m) }
 
     /** 播放整份清單；shuffle：true＝隨機、false＝照順序、null＝維持目前模式（小工具換清單） */
     fun playAll(tracks: List<Track>, shuffle: Boolean?, source: String = "") {

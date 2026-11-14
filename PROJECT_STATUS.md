@@ -112,6 +112,7 @@
 - [ ] v0.7.1：從手機選圖；日文歌的候選圖變多
 - [ ] v0.7.3：播放中換封面（同一首再換一次也要試）→ 鎖定畫面幾秒內更新，音樂不中斷；「拿掉找到的封面」後也會更新
 - [ ] v0.7.5：小工具 ±10 秒按鈕（4×2、5×1、2×2）有作用；2×2 的按鈕不會太小；上一首／下一首點一下立刻換歌
+- [ ] v0.7.8：點小工具歌名開的控制面板有「播放模式」，點選後立刻生效，App 與小工具的模式鈕同步
 - [ ] v0.7.7：5×1 最右邊的 +10 完整顯示（v0.7.6 的四個尺寸與預覽圖倬已確認）；已放在桌面的舊小工具仍會更新
 - [ ] v0.7.3：檔名「滅火器 Fire EX. - 曾經瘋狂」的音檔，列表與鎖定畫面顯示歌名「曾經瘋狂」、歌手「滅火器 Fire EX.」；日期開頭的錄音檔名不受影響
 
@@ -124,12 +125,18 @@
 
 ## 下一步
 
-1. 倬實機測 v0.7.7（`latest` 預先發行版）→ 通過後打 v0.7.7 tag，v0.7.0～v0.7.6 以它為準（匯入與小工具已由倬確認）（v0.3.0、v0.4.0、v0.6.0 以 v0.7.0 整體通過為準）。v0.5.0 已於 2026-10-26 實機通過並打 tag；v0.3.0／v0.4.0 的個別項目倬未逐項回報，以 v0.5.0 整體通過為準（倬 2026-10-26：清單管理完成後就做小工具）。v0.4.0 YouTube 分享 2026-10-26 倬實測轉檔成功。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
+1. 倬實機測 v0.7.8（`latest` 預先發行版）→ 通過後打 v0.7.8 tag，v0.7.0～v0.7.7 以它為準（匯入與小工具已由倬確認）（v0.3.0、v0.4.0、v0.6.0 以 v0.7.0 整體通過為準）。v0.5.0 已於 2026-10-26 實機通過並打 tag；v0.3.0／v0.4.0 的個別項目倬未逐項回報，以 v0.5.0 整體通過為準（倬 2026-10-26：清單管理完成後就做小工具）。v0.4.0 YouTube 分享 2026-10-26 倬實測轉檔成功。N100 紀錄：`ssh n100 'journalctl --user -u soundflow-worker -f'`
 2. CI 注意事項（不影響編譯）：GitHub 提示 upload-artifact@v4、setup-gradle@v4 用的 Node 20 已淘汰；ubuntu-latest 將換成 Ubuntu 26。之後一起升級 action 版本
 3. 如果驗證碼信只有連結沒有數字：Supabase 後台 Authentication → Email Templates → Magic Link 內文要有 `{{ .Token }}`（43 號語音記帳已經用驗證碼登入，應該已設定）
 4. SOP 第 5 步接下來（2026-10-26 再調整）：v0.7.x 待播佇列、搜尋 → v0.8.0 快取與 Drive 封存 → v0.9.0 Agent API 實作 → 備份、健康檢查
 
 ## 交接紀錄
+
+### 2026-11-14／電腦 A
+- 倬要求：點小工具開的控制面板（`WidgetPanelActivity`）要能調播放模式
+- 完成 v0.7.8：面板在播放鍵下方新增「播放模式」三顆（`PlayMode.entries`，目前模式反白）；`PlayerConnection.setMode` 直接指定模式
+- **決定**：用三選一而不是輪流切換鈕，面板空間夠，點一下就到位；放在倍速前面，因為比倍速常用
+- 驗證：單元測試與正式版／LAB 版編譯通過；**未實機測試**；v0.7.7 的 +10 倬尚未回報
 
 ### 2026-11-10／電腦 A（feat/auto-backup worktree：D:\dev\APK-SoundFlow-backup）
 - 完成 v0.8.0：套用 hoonsor-kit 共用模組 android-auto-backup（兩個 Java 檔原樣複製，未改模組庫）；Manifest 登記 SOURCE＝`tw.hoonsor.soundflow.backup.SoundFlowBackupSource`、BackupJobService、RECEIVE_BOOT_COMPLETED；`App.onCreate` 呼叫 `AutoBackup.ensureScheduled`
